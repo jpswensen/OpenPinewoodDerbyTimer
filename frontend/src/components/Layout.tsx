@@ -26,7 +26,7 @@ export function Layout() {
 
   return (
     <div className="min-h-full">
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+      <header className="no-print sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-2">
             <Button variant="ghost" className="md:hidden" onClick={() => setMobileOpen((v) => !v)}>
@@ -46,7 +46,7 @@ export function Layout() {
       <div className="mx-auto flex w-full max-w-6xl gap-4 px-4 py-4">
         <aside
           className={cn(
-            'w-56 shrink-0 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900',
+            'no-print w-56 shrink-0 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900',
             'md:block',
             mobileOpen ? 'block' : 'hidden',
           )}
