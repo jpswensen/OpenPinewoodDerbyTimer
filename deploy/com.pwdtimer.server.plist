@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.pwdtimer.server</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/pwdtimer/start-prod.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/opt/pwdtimer</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHON_BIN</key>
+        <string>/opt/pwdtimer/env/bin/python3</string>
+        <key>PWD_TIMER_HOST</key>
+        <string>0.0.0.0</string>
+        <key>PWD_TIMER_PORT</key>
+        <string>8000</string>
+        <key>PWD_TIMER_WORKERS</key>
+        <string>1</string>
+        <key>PWD_TIMER_LOG_LEVEL</key>
+        <string>info</string>
+        <key>PWD_TIMER_DB_URL</key>
+        <string>sqlite+aiosqlite:///opt/pwdtimer/data/pwdtimer.db</string>
+        <key>PWD_TIMER_STATIC_DIR</key>
+        <string>/opt/pwdtimer/frontend/dist</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/opt/pwdtimer/data/pwdtimer.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/opt/pwdtimer/data/pwdtimer-error.log</string>
+</dict>
+</plist>

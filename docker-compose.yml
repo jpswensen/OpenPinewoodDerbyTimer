@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pwdtimer-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - pwdtimer-data:/data
+    environment:
+      - PWD_TIMER_DB_URL=sqlite+aiosqlite:///data/pwdtimer.db
+      - PWD_TIMER_HOST=0.0.0.0
+      - PWD_TIMER_PORT=8000
+      - PWD_TIMER_WORKERS=${PWD_TIMER_WORKERS:-1}
+      - PWD_TIMER_LOG_LEVEL=${PWD_TIMER_LOG_LEVEL:-info}
+      - PWD_TIMER_STATIC_DIR=${PWD_TIMER_STATIC_DIR:-}
+      - PWD_TIMER_WS_TOKEN=${PWD_TIMER_WS_TOKEN:-}
+    # Allow access to USB serial devices on the host (optional)
+    # Uncomment the following lines if connecting to timer hardware via USB:
+    # devices:
+    #   - /dev/ttyUSB0:/dev/ttyUSB0
+    #   - /dev/ttyACM0:/dev/ttyACM0
+    # privileged: true
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pwdtimer-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - backend
+
+volumes:
+  pwdtimer-data:
+    driver: local

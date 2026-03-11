@@ -1,0 +1,47 @@
+[Unit]
+Description=PWDTimer — Pinewood Derby Timer Management System
+Documentation=https://github.com/your-org/PWDTimer
+After=network.target
+
+[Service]
+Type=exec
+User=pwdtimer
+Group=pwdtimer
+WorkingDirectory=/opt/pwdtimer/backend
+
+# Environment configuration
+Environment=PWD_TIMER_HOST=0.0.0.0
+Environment=PWD_TIMER_PORT=8000
+Environment=PWD_TIMER_WORKERS=1
+Environment=PWD_TIMER_LOG_LEVEL=info
+Environment=PWD_TIMER_DB_URL=sqlite+aiosqlite:///opt/pwdtimer/data/pwdtimer.db
+Environment=PWD_TIMER_STATIC_DIR=/opt/pwdtimer/frontend/dist
+
+# Override defaults with a drop-in file:
+#   /etc/systemd/system/pwdtimer.service.d/override.conf
+# Or with an EnvironmentFile:
+# EnvironmentFile=/etc/pwdtimer/pwdtimer.env
+
+ExecStart=/opt/pwdtimer/env/bin/gunicorn app.main:app \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --workers 1 \
+    --bind 0.0.0.0:8000 \
+    --log-level info \
+    --access-logfile - \
+    --error-logfile -
+
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/pwdtimer/data
+PrivateTmp=yes
+
+# Allow serial device access (for USB timer connection)
+# SupplementaryGroups=dialout
+
+[Install]
+WantedBy=multi-user.target

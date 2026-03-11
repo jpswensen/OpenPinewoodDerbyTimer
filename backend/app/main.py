@@ -1,5 +1,10 @@
-from fastapi import FastAPI
+import os
+from pathlib import Path
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .models.database import init_db
 from .routers import certificates, connection, groups, import_export, racers, races, websocket
@@ -46,3 +51,29 @@ app.include_router(websocket.router)
 @app.get("/api/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+# ── Production static file serving ───────────────────────────────────────────
+# When PWD_TIMER_STATIC_DIR is set and points to a directory containing
+# index.html, the backend serves the built frontend directly (no separate
+# nginx or Vite dev server needed).
+_static_dir = os.environ.get("PWD_TIMER_STATIC_DIR", "")
+if _static_dir:
+    _static_path = Path(_static_dir)
+    if _static_path.is_dir() and (_static_path / "index.html").is_file():
+        # Mount hashed assets with aggressive caching
+        _assets = _static_path / "assets"
+        if _assets.is_dir():
+            app.mount(
+                "/assets",
+                StaticFiles(directory=str(_assets)),
+                name="static-assets",
+            )
+
+        @app.get("/{full_path:path}")
+        async def _serve_spa(request: Request, full_path: str) -> FileResponse:
+            """Serve static files or fall back to index.html for SPA routing."""
+            file = _static_path / full_path
+            if full_path and file.is_file():
+                return FileResponse(str(file))
+            return FileResponse(str(_static_path / "index.html"))

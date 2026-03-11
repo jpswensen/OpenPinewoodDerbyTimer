@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
+gunicorn
 sqlalchemy>=2.0
 aiosqlite
 pydantic>=2.0

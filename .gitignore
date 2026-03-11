@@ -60,6 +60,12 @@ firmware/include/
 *.log
 logs/
 
+# Docker
+docker-compose.override.yml
+
+# Data directory (production SQLite database)
+data/
+
 # Test artifacts
 coverage/
 .nyc_output/

@@ -125,6 +125,7 @@ PWDTimer/
 │   │       ├── tcp_connection.py       # TCP socket handling
 │   │       └── mdns_discovery.py       # mDNS device discovery
 │   ├── tests/                  # pytest test suite (253+ tests, 90%+ coverage)
+│   ├── Dockerfile              # Backend container image
 │   └── requirements.txt
 ├── frontend/                   # React + TypeScript application
 │   ├── src/
@@ -134,6 +135,8 @@ PWDTimer/
 │   │   ├── context/            # React context providers (theme)
 │   │   ├── api/                # Typed API client functions
 │   │   └── lib/                # Utilities (settings, helpers)
+│   ├── Dockerfile              # Frontend container image (nginx)
+│   ├── nginx.conf              # Production nginx configuration
 │   ├── package.json
 │   └── vite.config.ts
 ├── firmware/                   # ESP32 PlatformIO project
@@ -145,8 +148,14 @@ PWDTimer/
 │   │   └── main.cpp            # Firmware entry point
 │   ├── test/                   # Native unit tests (78+ tests)
 │   └── platformio.ini
+├── deploy/                     # Deployment configuration files
+│   ├── pwdtimer.service        # systemd unit file (Linux)
+│   └── com.pwdtimer.server.plist # launchd plist (macOS)
 ├── docs/                       # Documentation
-├── start.sh                    # One-command startup script
+├── docker-compose.yml          # Single-command Docker deployment
+├── .env.example                # Environment variable template
+├── start.sh                    # Development startup script
+├── start-prod.sh               # Production startup script
 └── .gitignore
 ```
 
@@ -206,6 +215,111 @@ This system works with custom ESP32-based timing hardware supporting **4–8 lan
 |-------|-----|-------|------------|
 | PWDTimer V2 (primary) | ESP32 | 8 | USB Serial + WiFi AP |
 | SunnysideTimer V1 | ESP8266 | 4 | USB Serial only |
+
+## Deployment
+
+PWDTimer supports several deployment options depending on your needs.
+
+### Option 1: Production Script (Simplest)
+
+A single `start-prod.sh` script builds the frontend and starts a production-grade Gunicorn server that serves both the API and the web interface:
+
+```bash
+# Build frontend & start production server on port 8000
+./start-prod.sh
+```
+
+Configure via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PWD_TIMER_HOST` | `0.0.0.0` | Bind address |
+| `PWD_TIMER_PORT` | `8000` | Server port |
+| `PWD_TIMER_WORKERS` | `1` | Gunicorn worker count |
+| `PWD_TIMER_LOG_LEVEL` | `info` | Log level (debug/info/warning/error) |
+| `PWD_TIMER_DB_URL` | `sqlite+aiosqlite:///data/pwdtimer.db` | Database URL |
+| `PWD_TIMER_STATIC_DIR` | `frontend/dist` | Path to built frontend |
+| `PWD_TIMER_WS_TOKEN` | *(empty)* | Optional WebSocket auth token |
+
+### Option 2: Docker Compose
+
+Run the entire stack in containers with a single command:
+
+```bash
+# Start everything
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+The frontend is served by **nginx** on port 80 (configurable via `FRONTEND_PORT`), which proxies API and WebSocket requests to the backend container on port 8000.
+
+To connect the timer hardware via USB serial from within Docker, uncomment the `devices` section in `docker-compose.yml`.
+
+Copy `.env.example` to `.env` to customize settings:
+
+```bash
+cp .env.example .env
+# Edit .env as needed, then:
+docker compose up -d
+```
+
+### Option 3: Systemd (Linux auto-start)
+
+Install as a system service for headless deployment (e.g., a dedicated Raspberry Pi):
+
+```bash
+# 1. Copy application to /opt/pwdtimer
+sudo mkdir -p /opt/pwdtimer
+sudo cp -r . /opt/pwdtimer/
+
+# 2. Create dedicated user
+sudo useradd -r -s /bin/false pwdtimer
+sudo mkdir -p /opt/pwdtimer/data
+sudo chown -R pwdtimer:pwdtimer /opt/pwdtimer
+
+# 3. Set up Python venv and install deps
+cd /opt/pwdtimer
+sudo -u pwdtimer python3 -m venv env
+sudo -u pwdtimer env/bin/pip install -r backend/requirements.txt gunicorn
+
+# 4. Build frontend
+cd /opt/pwdtimer/frontend && npm ci && npm run build
+
+# 5. Install and start the service
+sudo cp deploy/pwdtimer.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now pwdtimer
+
+# Check status
+sudo systemctl status pwdtimer
+```
+
+### Option 4: macOS launchd (auto-start)
+
+For macOS deployments:
+
+```bash
+# 1. Copy application to /opt/pwdtimer and set up (same as steps 1-4 above)
+
+# 2. Install the launch agent
+cp deploy/com.pwdtimer.server.plist ~/Library/LaunchAgents/
+
+# 3. Load and start
+launchctl load ~/Library/LaunchAgents/com.pwdtimer.server.plist
+
+# Check status
+launchctl list | grep pwdtimer
+
+# Stop
+launchctl unload ~/Library/LaunchAgents/com.pwdtimer.server.plist
+```
+
+Logs are written to `/opt/pwdtimer/data/pwdtimer.log`.
 
 ## License
 
