@@ -176,6 +176,77 @@ class TestAPIRaces(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(ln["time_microseconds"] is None for ln in repeated["lanes"]))
         self.assertTrue(all(ln["place"] is None for ln in repeated["lanes"]))
 
+    async def test_update_heat_lane_assignments_validation(self) -> None:
+        gid = await self._create_group("Gassign")
+        for i in range(1, 5):
+            await self._create_racer(f"R{i}", gid)
+        race_id = await self._create_race("Race", 4)
+
+        resp = await self.client.post(f"/api/races/{race_id}/generate-heats")
+        self.assertEqual(resp.status_code, 201)
+        heat = resp.json()[0]
+        heat_id = heat["id"]
+
+        orig = {ln["lane_number"]: ln["racer_id"] for ln in heat["lanes"]}
+
+        # Swap lanes 1 and 2.
+        resp = await self.client.put(
+            f"/api/heats/{heat_id}",
+            json={
+                "lanes": [
+                    {"lane_number": 1, "racer_id": orig[2]},
+                    {"lane_number": 2, "racer_id": orig[1]},
+                ]
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        updated = resp.json()
+        after = {ln["lane_number"]: ln["racer_id"] for ln in updated["lanes"]}
+        self.assertEqual(after[1], orig[2])
+        self.assertEqual(after[2], orig[1])
+
+        # Duplicates are rejected.
+        resp = await self.client.put(
+            f"/api/heats/{heat_id}",
+            json={
+                "lanes": [
+                    {"lane_number": 1, "racer_id": orig[3]},
+                    {"lane_number": 2, "racer_id": orig[3]},
+                ]
+            },
+        )
+        self.assertEqual(resp.status_code, 400)
+
+        # Unknown racer IDs are rejected.
+        resp = await self.client.put(
+            f"/api/heats/{heat_id}",
+            json={"lanes": [{"lane_number": 1, "racer_id": 999999}]},
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    async def test_reorder_heats(self) -> None:
+        gid = await self._create_group("Greorder")
+        for i in range(1, 6):
+            await self._create_racer(f"R{i}", gid)
+        race_id = await self._create_race("Race", 4)
+
+        resp = await self.client.post(f"/api/races/{race_id}/generate-heats")
+        self.assertEqual(resp.status_code, 201)
+
+        resp = await self.client.get(f"/api/races/{race_id}/heats")
+        self.assertEqual(resp.status_code, 200)
+        heats = resp.json()
+        heat_ids = [h["id"] for h in heats]
+
+        new_order = list(reversed(heat_ids))
+        resp = await self.client.put(
+            f"/api/races/{race_id}/heats/reorder", json={"heat_ids": new_order}
+        )
+        self.assertEqual(resp.status_code, 200)
+        reordered = resp.json()
+        self.assertEqual([h["id"] for h in reordered], new_order)
+        self.assertEqual([h["heat_number"] for h in reordered], list(range(1, len(new_order) + 1)))
+
     async def test_export_race_results_pdf(self) -> None:
         gid = await self._create_group("Gpdf")
         racers = [await self._create_racer(f"R{i}", gid) for i in range(1, 5)]

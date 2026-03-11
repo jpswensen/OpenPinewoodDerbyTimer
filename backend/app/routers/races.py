@@ -168,14 +168,71 @@ async def list_heats(
     return list(res.scalars().all())
 
 
-class HeatLaneTimeUpdate(BaseModel):
+class HeatsReorderRequest(BaseModel):
+    heat_ids: list[int]
+
+
+@router.put("/races/{race_id}/heats/reorder", response_model=list[HeatWithLanesRead])
+async def reorder_heats(
+    race_id: int, payload: HeatsReorderRequest, session: AsyncSession = Depends(get_db_session)
+) -> list[Heat]:
+    race = await session.get(Race, race_id)
+    if race is None:
+        raise HTTPException(status_code=404, detail="Race not found")
+
+    res = await session.execute(select(Heat).where(Heat.race_id == race_id).order_by(Heat.heat_number))
+    heats = list(res.scalars().all())
+
+    if not heats:
+        return []
+
+    existing_ids = [h.id for h in heats]
+    if len(payload.heat_ids) != len(existing_ids) or set(payload.heat_ids) != set(existing_ids):
+        raise HTTPException(status_code=400, detail="heat_ids must include every heat exactly once")
+
+    by_id = {h.id: h for h in heats}
+
+    # Avoid UNIQUE(race_id, heat_number) collisions by using a two-phase renumber.
+    max_num = max(h.heat_number for h in heats)
+    temp_base = max_num + 1000
+
+    for idx, hid in enumerate(payload.heat_ids, start=1):
+        by_id[hid].heat_number = temp_base + idx
+    await session.flush()
+
+    for idx, hid in enumerate(payload.heat_ids, start=1):
+        by_id[hid].heat_number = idx
+
+    await session.commit()
+
+    res = await session.execute(
+        select(Heat)
+        .where(Heat.race_id == race_id)
+        .options(selectinload(Heat.lanes))
+        .order_by(Heat.heat_number)
+    )
+    return list(res.scalars().all())
+
+
+def _field_was_set(model: BaseModel, field: str) -> bool:
+    fields_set = getattr(model, "model_fields_set", None)
+    if isinstance(fields_set, set):
+        return field in fields_set
+    fields_set = getattr(model, "__fields_set__", None)
+    if isinstance(fields_set, set):
+        return field in fields_set
+    return False
+
+
+class HeatLaneUpdate(BaseModel):
     lane_number: int
     time_microseconds: int | None = None
+    racer_id: int | None = None
 
 
 class HeatUpdateRequest(BaseModel):
     status: str | None = None
-    lanes: list[HeatLaneTimeUpdate] | None = None
+    lanes: list[HeatLaneUpdate] | None = None
 
 
 @router.put("/heats/{heat_id}", response_model=HeatWithLanesRead)
@@ -200,11 +257,39 @@ async def update_heat(
 
     if payload.lanes is not None:
         lanes_by_num = {hl.lane_number: hl for hl in heat.lanes}
+
+        assignment_updates = [upd for upd in payload.lanes if _field_was_set(upd, "racer_id")]
+        if assignment_updates and heat.status != "pending":
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot change lane assignments unless the heat is pending",
+            )
+
+        racer_ids = {upd.racer_id for upd in assignment_updates if upd.racer_id is not None}
+        if racer_ids:
+            res = await session.execute(select(Racer.id).where(Racer.id.in_(racer_ids)))
+            found = set(res.scalars().all())
+            missing = sorted(set(racer_ids) - found)
+            if missing:
+                raise HTTPException(status_code=400, detail={"unknown_racer_ids": missing})
+
         for upd in payload.lanes:
             hl = lanes_by_num.get(upd.lane_number)
             if hl is None:
                 raise HTTPException(status_code=400, detail=f"Unknown lane_number: {upd.lane_number}")
-            hl.time_microseconds = upd.time_microseconds
+
+            if _field_was_set(upd, "racer_id") and upd.racer_id != hl.racer_id:
+                hl.racer_id = upd.racer_id
+                # Changing a lane assignment invalidates any prior recorded time/place.
+                hl.time_microseconds = None
+                hl.place = None
+
+            if _field_was_set(upd, "time_microseconds"):
+                hl.time_microseconds = upd.time_microseconds
+
+        assigned = [hl.racer_id for hl in heat.lanes if hl.racer_id is not None]
+        if len(assigned) != len(set(assigned)):
+            raise HTTPException(status_code=400, detail="Duplicate racer_id within a heat is not allowed")
 
         # Recompute per-heat place ordering.
         finished = [
