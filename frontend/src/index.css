@@ -23,3 +23,21 @@ body {
 body {
   @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50;
 }
+
+.print-only {
+  display: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+}

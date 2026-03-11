@@ -43,9 +43,35 @@ export function deleteRace(id: number): Promise<void> {
 }
 
 export function generateHeats(raceId: number, payload?: { group_id?: number | null }): Promise<Heat[]> {
-  return apiFetch(`/races/${raceId}/generate-heats`, { method: 'POST', body: payload || {} })
+  return apiFetch(`/races/${raceId}/generate-heats`, {
+    method: 'POST',
+    query: { group_id: payload?.group_id ?? undefined },
+  })
 }
 
 export function listHeats(raceId: number): Promise<Heat[]> {
   return apiFetch(`/races/${raceId}/heats`)
+}
+
+export type HeatLaneUpdate = {
+  lane_number: number
+  time_microseconds?: number | null
+  racer_id?: number | null
+}
+
+export type HeatUpdateRequest = {
+  status?: Heat['status']
+  lanes?: HeatLaneUpdate[]
+}
+
+export function updateHeat(heatId: number, payload: HeatUpdateRequest): Promise<Heat> {
+  return apiFetch(`/heats/${heatId}`, { method: 'PUT', body: payload })
+}
+
+export function repeatHeat(heatId: number): Promise<Heat> {
+  return apiFetch(`/heats/${heatId}/repeat`, { method: 'POST' })
+}
+
+export function reorderHeats(raceId: number, heatIds: number[]): Promise<Heat[]> {
+  return apiFetch(`/races/${raceId}/heats/reorder`, { method: 'PUT', body: { heat_ids: heatIds } })
 }
