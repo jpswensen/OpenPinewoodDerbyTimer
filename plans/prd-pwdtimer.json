@@ -49,7 +49,7 @@
       "Create PWDTimer/.gitignore with appropriate patterns for Python, Node, and PlatformIO",
       "Commit the initial project scaffold"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "backend",

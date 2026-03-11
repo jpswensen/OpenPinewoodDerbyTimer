@@ -44,3 +44,26 @@
 ### Notes
 - The ESP8266 TCP sketches appear incomplete/buggy (interrupt hookup commented out; 8-lane variant has ISR index/out-of-bounds risk). The ESP32 firmware is the best baseline for modernization.
 
+
+## Iteration 3 — Infrastructure scaffold (2026-03-11)
+
+### What was implemented
+- Created FastAPI backend scaffold with CORS and `/api/health`
+- Scaffolded Vite + React + TypeScript frontend with routing, TanStack Query provider, Radix Themes, and Tailwind CSS (dark mode via `class`)
+- Added `start.sh` to run backend+frontend together (auto-installs backend deps if missing)
+
+### Files created
+- backend/ (FastAPI scaffold + requirements.txt)
+- frontend/ (Vite scaffold + Tailwind/PostCSS config)
+- start.sh
+
+### Git commits
+- 25417d2 chore(infra): scaffold backend and frontend
+
+### Test results
+- Frontend: `npm run build` ✅
+- Backend: `GET /api/health` ✅
+
+### Notes
+- `start.sh` expects `python3` to be a suitable environment (recommended: activate the repo venv before running).
+
