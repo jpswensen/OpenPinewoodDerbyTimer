@@ -68,7 +68,7 @@
       "Write tests in PWDTimer/backend/tests/test_models.py",
       "Commit the database models"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "backend",

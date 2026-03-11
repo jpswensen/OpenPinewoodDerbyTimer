@@ -1,7 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .models.database import init_db
+
 app = FastAPI(title="PWDTimer API")
+
+
+@app.on_event("startup")
+async def _startup() -> None:
+    await init_db()
+
 
 app.add_middleware(
     CORSMiddleware,

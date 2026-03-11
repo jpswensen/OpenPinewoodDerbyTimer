@@ -67,3 +67,28 @@
 ### Notes
 - `start.sh` expects `python3` to be a suitable environment (recommended: activate the repo venv before running).
 
+
+## Iteration 4 — Backend DB models (2026-03-10)
+
+### What was implemented
+- Added async SQLAlchemy + SQLite database layer (engine/session helpers and init/create-all)
+- Implemented core ORM models (Group, Racer, Race, Heat, HeatLane, RaceResult) and Pydantic schemas
+- Wired backend startup to initialize the schema automatically
+- Added model-level unit tests using `unittest` + temporary SQLite database
+
+### Files created
+- backend/app/models/__init__.py
+- backend/app/models/database.py
+- backend/app/models/models.py
+- backend/app/models/schemas.py
+- backend/app/models/init_db.py
+- backend/tests/test_models.py
+
+### Git commits
+- (pending)
+
+### Test results
+- Backend: `python -m unittest discover -s tests -p 'test*.py' -v` ✅
+
+### Notes
+- Times are stored as integers in microseconds where applicable to preserve precision.
