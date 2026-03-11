@@ -43,3 +43,26 @@
 
 ### Notes
 - The frontend dev server proxies `/api` and `/ws` to the backend (see `frontend/vite.config.ts`).
+
+
+## Iteration 3 — Results page standings (2026-03-11)
+
+### What was implemented
+- Implemented the Results page (`/results`) with race selection, group filter, sortable standings, and top-3 highlighting.
+- Computed per-lane best times, average, and best time from completed heats; added expandable per-racer run history (heat/lane/place/time).
+- Added PDF export download (backend `/api/races/{id}/export/pdf`) and print-friendly output (hide nav/sidebar when printing).
+- Added summary stats (fastest single time, closest finish, participation + heat completion counts).
+
+### Files created
+- N/A
+
+### Git commits
+- cb47899 feat(frontend): results page standings
+
+### Test results
+- Backend: `python3 -m unittest discover -s tests -p 'test*.py' -v` ✅
+- Frontend: `npm run lint` ✅
+- Frontend: `npm run build` ✅
+
+### Notes
+- When repeat heats create multiple runs in the same lane, the standings use the best time for that lane.

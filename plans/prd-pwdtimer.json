@@ -276,7 +276,7 @@
       "Create expandable row showing all individual heat times",
       "Commit the results page"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
