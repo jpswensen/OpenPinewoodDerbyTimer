@@ -202,6 +202,7 @@
 
 ### Git commits
 - 2a998d6 feat(frontend): implement racers page
+- 5ce1500 chore: update prd progress
 
 ### Test results
 - Frontend: `npm run lint` ✅
