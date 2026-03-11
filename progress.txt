@@ -23,3 +23,24 @@
 ### Notes
 - Legacy TCP connect/parsing appears incomplete/buggy; the modern stack should define and strictly test the framing + command set
 
+
+## Iteration 2 — Firmware/hardware legacy review (2026-03-11)
+
+### What was implemented
+- Reviewed the ESP8266 firmware variants (serial 4-lane + TCP sketches), documenting pin mappings and timing/state-machine behavior
+- Reviewed the ESP32 PlatformIO firmware (FreeRTOS tasks, queue-based comms, SoftAP + mDNS) and documented the supported command set
+- Reviewed hardware design artifacts (Eagle schematic/board files) and the Digikey parts list
+- Documented protocol compatibility risks (missing numLanes field in legacy messages, strict RESET parsing, incomplete TCP variants)
+
+### Files created
+- docs/02_firmware_hardware_review.md
+
+### Git commits
+- e8d17d6 research(docs): review legacy firmware/hardware
+
+### Test results
+- N/A (research/documentation only)
+
+### Notes
+- The ESP8266 TCP sketches appear incomplete/buggy (interrupt hookup commented out; 8-lane variant has ISR index/out-of-bounds risk). The ESP32 firmware is the best baseline for modernization.
+
