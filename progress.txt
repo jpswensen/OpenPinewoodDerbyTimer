@@ -1,0 +1,30 @@
+# Progress Log - PWDTimer Modernization
+
+
+## Iteration 1 — 
+
+### What was implemented
+- 
+- 
+- 
+
+### Files created
+- 
+- 
+- 
+
+### Git commits
+- 
+- 
+- 
+
+### Test results
+- 
+- 
+- 
+
+### Notes
+- 
+- 
+- 
+
