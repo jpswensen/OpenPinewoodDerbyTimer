@@ -176,6 +176,44 @@ class TestAPIRaces(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(ln["time_microseconds"] is None for ln in repeated["lanes"]))
         self.assertTrue(all(ln["place"] is None for ln in repeated["lanes"]))
 
+    async def test_export_race_results_pdf(self) -> None:
+        gid = await self._create_group("Gpdf")
+        racers = [await self._create_racer(f"R{i}", gid) for i in range(1, 5)]
+        race_id = await self._create_race("Pack Finals", 4)
+
+        resp = await self.client.post(f"/api/races/{race_id}/generate-heats")
+        self.assertEqual(resp.status_code, 201)
+        heat_id = resp.json()[0]["id"]
+
+        upd = {
+            "status": "completed",
+            "lanes": [
+                {"lane_number": 1, "time_microseconds": 2_000_000},
+                {"lane_number": 2, "time_microseconds": 1_900_000},
+                {"lane_number": 3, "time_microseconds": 2_100_000},
+                {"lane_number": 4, "time_microseconds": 2_050_000},
+            ],
+        }
+        resp = await self.client.put(f"/api/heats/{heat_id}", json=upd)
+        self.assertEqual(resp.status_code, 200)
+
+        resp = await self.client.get(f"/api/races/{race_id}/export/pdf")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.headers.get("content-type"), "application/pdf")
+        self.assertTrue(resp.content.startswith(b"%PDF"))
+
+        # Options
+        resp = await self.client.get(
+            f"/api/races/{race_id}/export/pdf?page_size=a4&orientation=portrait"
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.content.startswith(b"%PDF"))
+
+        # Group filter
+        resp = await self.client.get(f"/api/races/{race_id}/export/pdf?group_id={gid}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.content.startswith(b"%PDF"))
+
 
 if __name__ == "__main__":
     unittest.main()

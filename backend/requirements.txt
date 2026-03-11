@@ -9,3 +9,5 @@ httpx
 pyserial
 pyserial-asyncio
 zeroconf
+reportlab
+weasyprint; platform_system != "Darwin"

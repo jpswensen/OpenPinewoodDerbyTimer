@@ -3,16 +3,23 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.database import get_db_session
-from app.models.models import Heat, HeatLane, Race, RaceResult, Racer
+from app.models.models import Group, Heat, HeatLane, Race, RaceResult, Racer
 from app.models.schemas import HeatWithLanesRead, RaceCreate, RaceRead, RaceUpdate
 from app.services.event_bus import event_bus
 from app.services.heat_scheduler import generate_round_robin_heats
+from app.services.pdf_generator import (
+    RaceResultsPDFMeta,
+    RaceResultsRow,
+    format_time_us,
+    generate_race_results_pdf,
+)
 from app.services.race_results import recalculate_race_results
 
 router = APIRouter(prefix="/api", tags=["races"])
@@ -277,3 +284,135 @@ async def repeat_heat(heat_id: int, session: AsyncSession = Depends(get_db_sessi
         select(Heat).where(Heat.id == new_heat.id).options(selectinload(Heat.lanes))
     )
     return res.scalar_one()
+
+
+@router.get("/races/{race_id}/export/pdf")
+async def export_race_results_pdf(
+    race_id: int,
+    group_id: int | None = Query(default=None),
+    page_size: str = Query(default="letter", pattern="^(letter|a4)$"),
+    orientation: str = Query(default="landscape", pattern="^(portrait|landscape)$"),
+    session: AsyncSession = Depends(get_db_session),
+) -> Response:
+    race = await session.get(Race, race_id)
+    if race is None:
+        raise HTTPException(status_code=404, detail="Race not found")
+
+    scope_label = "Overall"
+    if group_id is not None:
+        grp = await session.get(Group, group_id)
+        if grp is None:
+            raise HTTPException(status_code=404, detail="Group not found")
+        scope_label = f"Group: {grp.name}"
+
+    num_heats = await session.scalar(select(func.count(Heat.id)).where(Heat.race_id == race_id))
+
+    res = await session.execute(
+        select(func.distinct(HeatLane.racer_id))
+        .join(Heat, Heat.id == HeatLane.heat_id)
+        .where(Heat.race_id == race_id)
+        .where(HeatLane.racer_id.is_not(None))
+    )
+    racer_ids = [int(rid) for (rid,) in res.all() if rid is not None]
+
+    if group_id is not None and racer_ids:
+        res = await session.execute(
+            select(Racer.id).where(Racer.id.in_(racer_ids)).where(Racer.group_id == group_id)
+        )
+        racer_ids = [int(rid) for (rid,) in res.all()]
+
+    res = await session.execute(select(RaceResult).where(RaceResult.race_id == race_id))
+    results_by_racer = {rr.racer_id: rr for rr in res.scalars().all()}
+
+    racers: list[Racer] = []
+    if racer_ids:
+        res = await session.execute(select(Racer).where(Racer.id.in_(racer_ids)).order_by(Racer.id))
+        racers = list(res.scalars().all())
+
+    res = await session.execute(
+        select(HeatLane.racer_id, HeatLane.time_microseconds)
+        .join(Heat, Heat.id == HeatLane.heat_id)
+        .where(Heat.race_id == race_id)
+        .where(Heat.status == "completed")
+        .where(HeatLane.racer_id.is_not(None))
+        .where(HeatLane.time_microseconds.is_not(None))
+    )
+    times_by_racer: dict[int, list[int]] = {}
+    for racer_id, time_us in res.all():
+        if racer_id is None or time_us is None:
+            continue
+        rid = int(racer_id)
+        times_by_racer.setdefault(rid, []).append(int(time_us))
+
+    group_place: dict[int, int] = {}
+    if group_id is not None:
+        scored = []
+        for r in racers:
+            rr = results_by_racer.get(r.id)
+            avg = rr.average_time if rr is not None else None
+            if avg is None:
+                continue
+            scored.append((int(avg), int(rr.best_time or avg), r.id))
+        scored.sort()
+        for idx, (_avg, _best, rid) in enumerate(scored, start=1):
+            group_place[rid] = idx
+
+    rows: list[RaceResultsRow] = []
+    for r in racers:
+        rr = results_by_racer.get(r.id)
+        times = sorted(times_by_racer.get(r.id, []))
+        times_str = ", ".join(format_time_us(t) for t in times)
+
+        if group_id is not None:
+            place = str(group_place.get(r.id, ""))
+        else:
+            place = str(rr.overall_place) if (rr is not None and rr.overall_place is not None) else ""
+
+        avg_us = rr.average_time if rr is not None else None
+        avg_str = format_time_us(int(avg_us)) if avg_us is not None else ""
+
+        car = ""
+        if r.car_name and r.car_number:
+            car = f"{r.car_name} (#{r.car_number})"
+        elif r.car_name:
+            car = r.car_name
+        elif r.car_number:
+            car = f"#{r.car_number}"
+
+        rows.append(
+            RaceResultsRow(
+                place=place,
+                name=r.name,
+                car=car,
+                group=(r.group.name if r.group else ""),
+                times=times_str,
+                average=avg_str,
+            )
+        )
+
+    def _sort_key(row: RaceResultsRow):
+        if row.place.isdigit():
+            return (0, int(row.place))
+        return (1, row.name.lower())
+
+    rows.sort(key=_sort_key)
+
+    pdf_bytes = generate_race_results_pdf(
+        meta=RaceResultsPDFMeta(
+            event_name=race.name,
+            generated_at=_utcnow(),
+            race_date=race.created_at,
+            num_heats=int(num_heats) if num_heats is not None else None,
+            scope_label=scope_label,
+        ),
+        rows=rows,
+        page_size=page_size,  # type: ignore[arg-type]
+        orientation=orientation,  # type: ignore[arg-type]
+    )
+
+    filename = f"race-{race_id}-results.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
