@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type DragEvent, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Papa from 'papaparse'
 
@@ -14,7 +14,7 @@ import type { Group } from '../api/endpoints/groups'
 import { createGroup, deleteGroup, listGroups, updateGroup } from '../api/endpoints/groups'
 import type { Racer, RacerCreate, RacerUpdate } from '../api/endpoints/racers'
 import { createRacer, deleteRacer, listRacers, updateRacer } from '../api/endpoints/racers'
-import { importRacersCsv } from '../api/endpoints/importExport'
+import { exportRacersCsv, importRacersCsv } from '../api/endpoints/importExport'
 
 type CsvRow = Record<string, string>
 
@@ -72,7 +72,7 @@ export function RacersPage() {
   const { toast } = useToast()
 
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
-  const [dragOverGroupId, setDragOverGroupId] = useState<number | null>(null)
+  const [dragOverGroupId, setDragOverGroupId] = useState<number | 'all' | null>(null)
 
   const [search, setSearch] = useState('')
 
@@ -101,6 +101,7 @@ export function RacersPage() {
   })
   const [csvParseError, setCsvParseError] = useState<string | null>(null)
   const [csvImporting, setCsvImporting] = useState(false)
+  const [csvExporting, setCsvExporting] = useState(false)
 
   const groupsQ = useQuery({
     queryKey: ['groups'],
@@ -199,6 +200,24 @@ export function RacersPage() {
     onError: (e) => {
       const msg = e instanceof ApiError ? e.message : 'Failed to update racer'
       toast({ variant: 'error', title: 'Update racer failed', description: msg })
+    },
+  })
+
+  const moveRacersM = useMutation({
+    mutationFn: async (args: { ids: number[]; group_id: number | null }) => {
+      await Promise.all(args.ids.map((id) => updateRacer(id, { group_id: args.group_id })))
+    },
+    onSuccess: async (_data, vars) => {
+      await qc.invalidateQueries({ queryKey: ['racers'] })
+      toast({
+        variant: 'success',
+        title: `Moved ${vars.ids.length} racer(s)`,
+        description: vars.group_id == null ? 'Unassigned from group.' : 'Updated group assignment.',
+      })
+    },
+    onError: (e) => {
+      const msg = e instanceof ApiError ? e.message : 'Failed to move racer(s)'
+      toast({ variant: 'error', title: 'Move failed', description: msg })
     },
   })
 
@@ -309,8 +328,33 @@ export function RacersPage() {
     }
   }
 
-  function moveRacerToGroup(racerId: number, groupId: number) {
-    updateRacerM.mutate({ id: racerId, payload: { group_id: groupId } })
+  function getDraggedRacerIds(e: DragEvent): number[] {
+    const json = e.dataTransfer.getData('application/json')
+    if (json) {
+      try {
+        const parsed: unknown = JSON.parse(json)
+        if (typeof parsed === 'object' && parsed && 'ids' in parsed) {
+          const ids = (parsed as { ids?: unknown }).ids
+          if (Array.isArray(ids)) {
+            return ids.map((x) => Number(x)).filter((n) => Number.isFinite(n))
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const raw = e.dataTransfer.getData('text/plain')
+    const id = Number(raw)
+    return Number.isFinite(id) ? [id] : []
+  }
+
+  function dropRacersToGroup(e: DragEvent, groupId: number | null) {
+    e.preventDefault()
+    setDragOverGroupId(null)
+    const ids = getDraggedRacerIds(e)
+    if (!ids.length) return
+    moveRacersM.mutate({ ids, group_id: groupId })
   }
 
   function parseCsv(file: File) {
@@ -436,6 +480,28 @@ export function RacersPage() {
     downloadTextFile('racers.csv', `${lines.join('\n')}\n`, 'text/csv; charset=utf-8')
   }
 
+  async function exportCsv() {
+    if (csvExporting) return
+
+    // If the user is viewing “All” with no search filter, prefer the backend export.
+    if (selectedGroupId == null && !search.trim()) {
+      setCsvExporting(true)
+      try {
+        const csv = await exportRacersCsv()
+        downloadTextFile('racers.csv', csv, 'text/csv; charset=utf-8')
+        toast({ variant: 'success', title: 'CSV exported' })
+      } catch (e) {
+        const msg = e instanceof ApiError ? e.message : 'CSV export failed'
+        toast({ variant: 'error', title: 'CSV export failed', description: msg })
+      } finally {
+        setCsvExporting(false)
+      }
+      return
+    }
+
+    exportVisibleCsv()
+  }
+
   async function deleteSelectedRacers() {
     const ids = [...selectedIds]
     if (!ids.length) return
@@ -460,15 +526,20 @@ export function RacersPage() {
           <div>
             <h1 className="text-xl font-semibold">Racers</h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Manage groups and participants. Drag racers onto a group to move them.
+              Manage groups and participants. Drag racers (or your current selection) onto a group to move them. Drop onto
+              “All” to unassign.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" onClick={() => setCsvModalOpen(true)}>
               Import CSV
             </Button>
-            <Button variant="secondary" onClick={exportVisibleCsv} disabled={!visibleRacers.length}>
-              Export CSV
+            <Button
+              variant="secondary"
+              onClick={() => void exportCsv()}
+              disabled={csvExporting || (selectedGroupId != null || search.trim() ? !visibleRacers.length : false)}
+            >
+              {csvExporting ? 'Exporting…' : 'Export CSV'}
             </Button>
           </div>
         </div>
@@ -493,13 +564,16 @@ export function RacersPage() {
               className={cn(
                 'w-full rounded-md px-2 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-800',
                 selectedGroupId == null ? 'bg-slate-100 font-semibold dark:bg-slate-800' : null,
+                dragOverGroupId === 'all' ? 'ring-2 ring-blue-500' : null,
               )}
               onClick={() => setSelectedGroupId(null)}
               onDragOver={(e) => {
                 e.preventDefault()
-                setDragOverGroupId(null)
+                setDragOverGroupId('all')
               }}
               onDragLeave={() => setDragOverGroupId(null)}
+              onDrop={(e) => dropRacersToGroup(e, null)}
+              title="Drop racers here to unassign from any group"
             >
               All
             </button>
@@ -517,14 +591,7 @@ export function RacersPage() {
                   setDragOverGroupId(g.id)
                 }}
                 onDragLeave={() => setDragOverGroupId(null)}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  setDragOverGroupId(null)
-                  const raw = e.dataTransfer.getData('text/plain')
-                  const racerId = Number(raw)
-                  if (!Number.isFinite(racerId)) return
-                  void moveRacerToGroup(racerId, g.id)
-                }}
+                onDrop={(e) => dropRacersToGroup(e, g.id)}
               >
                 <button
                   type="button"
@@ -670,11 +737,13 @@ export function RacersPage() {
                         key={r.id}
                         draggable
                         onDragStart={(e) => {
+                          const ids = selectedIds.has(r.id) ? [...selectedIds] : [r.id]
+                          e.dataTransfer.setData('application/json', JSON.stringify({ ids }))
                           e.dataTransfer.setData('text/plain', String(r.id))
                           e.dataTransfer.effectAllowed = 'move'
                         }}
                         className="cursor-move"
-                        title="Drag onto a group to move"
+                        title={selectedIds.has(r.id) && selectedIds.size > 1 ? 'Drag selection onto a group to move' : 'Drag onto a group to move'}
                       >
                         <td>
                           <input
