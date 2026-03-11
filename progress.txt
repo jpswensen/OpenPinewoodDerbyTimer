@@ -1,30 +1,25 @@
 # Progress Log - PWDTimer Modernization
 
 
-## Iteration 1 — 
+## Iteration 1 — Python legacy review (2026-03-11)
 
 ### What was implemented
-- 
-- 
-- 
+- Reviewed the legacy Python/PyQt5 app (UI structure, data model, heat scheduling, and timing UI flow)
+- Documented file formats (JSON save/load and CSV import)
+- Documented the serial/TCP protocol implementation and called out key gaps relevant to modernization
 
 ### Files created
-- 
-- 
-- 
+- docs/01_python_implementation_review.md
+- plans/prd-pwdtimer.json
+- progress.txt
 
 ### Git commits
-- 
-- 
-- 
+- f0f77a1 chore: add ralph tracking files
+- 20f8007 research(docs): review legacy python app
 
 ### Test results
-- 
-- 
-- 
+- N/A (research/documentation only)
 
 ### Notes
-- 
-- 
-- 
+- Legacy TCP connect/parsing appears incomplete/buggy; the modern stack should define and strictly test the framing + command set
 
