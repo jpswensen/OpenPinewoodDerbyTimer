@@ -2,19 +2,44 @@
 
 (Use this file as an append-only log. Each iteration should be a small, reviewable chunk of work.)
 
-## Iteration 1 — Project setup (YYYY-MM-DD)
+## Iteration 1 — Racers page polish (2026-03-11)
 
 ### What was implemented
-- 
+- Improved drag-and-drop UX by allowing dragging the current multi-selection and dropping onto “All” to unassign racers from groups.
+- Updated CSV export: when viewing “All racers” with no search filter, use the backend `/api/export/csv` output to ensure a consistent export.
 
 ### Files created
-- 
+- N/A
 
 ### Git commits
-- 
+- 8845565 fix(frontend): racers dnd + csv export
 
 ### Test results
-- 
+- Frontend: `npm run lint` ✅
+- Frontend: `npm run build` ✅
 
 ### Notes
-- 
+- This was an outstanding local change; committed to keep the working tree clean before implementing the Race page.
+
+
+## Iteration 2 — Race page realtime display (2026-03-11)
+
+### What was implemented
+- Implemented the Race page (`/race`) with a prominent current-heat header and per-lane cards (4–8 lanes).
+- Wired real-time race state + lane times + places via WebSocket (`/ws`) and added visual state badges (Ready/Set/Racing/Finished).
+- Added timer controls (Arm/Reset/Set lanes), a connection status indicator + reconnect button, and fullscreen mode for projector display.
+- Added optional start/finish sound effects (Web Audio API) and fixed the websocket hook to avoid reconnecting after an explicit disconnect/unmount.
+
+### Files created
+- N/A
+
+### Git commits
+- 98285bb feat(frontend): race page realtime display
+
+### Test results
+- Backend: `python3 -m unittest discover -s tests -p 'test*.py' -v` ✅
+- Frontend: `npm run lint` ✅
+- Frontend: `npm run build` ✅
+
+### Notes
+- The frontend dev server proxies `/api` and `/ws` to the backend (see `frontend/vite.config.ts`).

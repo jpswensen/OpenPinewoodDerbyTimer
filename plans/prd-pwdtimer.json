@@ -258,7 +258,7 @@
       "Add sound effects option for race start and finish (using Web Audio API)",
       "Commit the race page"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
