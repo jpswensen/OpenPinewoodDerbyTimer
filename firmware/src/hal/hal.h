@@ -70,4 +70,12 @@ public:
     /// The implementation must disable interrupts (or use equivalent
     /// synchronisation) to guarantee a consistent read.
     virtual LaneTimesSnapshot getLaneTimes() const = 0;
+
+    /// Update the state machine.  Must be called periodically from the main
+    /// loop / a FreeRTOS task (NOT from an ISR).
+    ///
+    /// Responsibilities:
+    ///   - Auto-arm when the start gate closes (RESET → SET on real hardware).
+    ///   - Detect when all active lanes have finished (IN_RACE → FINISHED).
+    virtual void updateState() = 0;
 };

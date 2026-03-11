@@ -36,7 +36,7 @@ public:
 
     /// Evaluate race progress: if all active lanes have non-zero end times,
     /// transition from IN_RACE → FINISHED.  Called from the main loop.
-    void updateState();
+    void updateState() override;
 
     // ── Pin definitions (public so tests can inspect) ──────────────────
 

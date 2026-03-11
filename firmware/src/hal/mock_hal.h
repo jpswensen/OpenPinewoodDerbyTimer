@@ -44,7 +44,7 @@ public:
 
     /// Evaluate whether the race is finished (all active lanes have
     /// non-zero times) and transition IN_RACE → FINISHED if so.
-    void updateState();
+    void updateState() override;
 
 private:
     TimerState m_state;
