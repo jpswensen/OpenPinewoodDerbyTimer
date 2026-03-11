@@ -64,6 +64,9 @@ logs/
 coverage/
 .nyc_output/
 
+# Compiled test binaries
+firmware/test_*_bin
+
 # Temporary files
 tmp/
 temp/
@@ -72,3 +75,5 @@ temp/
 # Generated files
 *.pyc
 *.pyo
+test_comm_bin
+test_hal_bin
