@@ -104,7 +104,7 @@
 - frontend/src/lib/settings.ts
 
 ### Git commits
-- N/A
+- 5cf4b33 feat(frontend): settings page
 
 ### Test results
 - Frontend: `npm run lint` ✅
