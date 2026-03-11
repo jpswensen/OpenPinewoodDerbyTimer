@@ -27,6 +27,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const reconnectTimerRef = useRef<number | null>(null)
   const connectRef = useRef<() => void>(() => {})
 
+  // Guards against reconnecting after an intentional disconnect (including unmount cleanup).
+  const shouldReconnectRef = useRef(reconnect)
+
   const [status, setStatus] = useState<WSStatus>('disconnected')
   const [lastMessage, setLastMessage] = useState<string | null>(null)
 
@@ -38,6 +41,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       return
     }
 
+    // A (re)connect implies the caller wants auto-reconnect behavior (if enabled).
+    shouldReconnectRef.current = reconnect
+
+    if (reconnectTimerRef.current) {
+      window.clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+
     setStatus('connecting')
     const ws = new WebSocket(url)
     wsRef.current = ws
@@ -46,7 +57,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     ws.onclose = () => {
       setStatus('disconnected')
       wsRef.current = null
-      if (reconnect) {
+      if (reconnect && shouldReconnectRef.current) {
         if (reconnectTimerRef.current) window.clearTimeout(reconnectTimerRef.current)
         reconnectTimerRef.current = window.setTimeout(() => connectRef.current(), 1000)
       }
@@ -70,6 +81,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   }, [connect])
 
   const disconnect = useCallback(() => {
+    // Explicit disconnect: do not auto-reconnect.
+    shouldReconnectRef.current = false
+
     if (reconnectTimerRef.current) {
       window.clearTimeout(reconnectTimerRef.current)
       reconnectTimerRef.current = null

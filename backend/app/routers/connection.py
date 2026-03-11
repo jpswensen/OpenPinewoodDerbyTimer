@@ -85,3 +85,39 @@ async def disconnect(request: Request) -> dict:
 @router.get("/status")
 async def status(request: Request) -> dict:
     return _manager(request).get_status().to_dict()
+
+
+@router.post("/arm")
+async def arm(request: Request) -> dict:
+    mgr = _manager(request)
+    try:
+        await mgr.send_arm()
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    return mgr.get_status().to_dict()
+
+
+@router.post("/reset")
+async def reset(request: Request) -> dict:
+    mgr = _manager(request)
+    try:
+        await mgr.send_reset()
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    return mgr.get_status().to_dict()
+
+
+class SetLanesRequest(BaseModel):
+    num_lanes: int
+
+
+@router.post("/set-lanes")
+async def set_lanes(payload: SetLanesRequest, request: Request) -> dict:
+    mgr = _manager(request)
+    try:
+        await mgr.send_set_lanes(payload.num_lanes)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    return mgr.get_status().to_dict()
