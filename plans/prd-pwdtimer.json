@@ -239,7 +239,7 @@
       "Write component tests",
       "Commit the heats page"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",

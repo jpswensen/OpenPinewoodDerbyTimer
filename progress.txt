@@ -212,3 +212,25 @@
 - CSV parsing uses `papaparse` for robust header handling; imports are normalized to the backend’s expected header schema.
 
 
+## Iteration 10 — Heats page (2026-03-11)
+
+### What was implemented
+- Implemented the Heats page: race selection/creation, lane count control, optional group-scoped scheduling, and heat generation
+- Displayed heats as a grid (heats × lanes) with status + time/place indicators
+- Added repeat heat button per row
+- Implemented drag-and-drop heat reordering
+- Implemented drag-and-drop lane assignment overrides (pending heats only)
+- Added print-friendly heat sheet behavior (`no-print` / `print-only`)
+
+### Git commits
+- 3d3f0cc feat(backend): heat reorder and lane override
+- b58e9ee feat(frontend): implement heats page
+
+### Test results
+- Backend: `python3 -m unittest discover -s tests -p 'test*.py' -v` ✅
+- Frontend: `npm run lint` ✅
+- Frontend: `npm run build` ✅
+
+### Notes
+- Component tests are not yet present in the frontend toolchain; this iteration focused on end-to-end behavior + backend coverage.
+
