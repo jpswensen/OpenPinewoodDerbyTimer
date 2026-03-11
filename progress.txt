@@ -187,3 +187,27 @@
 ### Notes
 - Vite dev server proxies `/api` and `/ws` to `http://127.0.0.1:8000`.
 
+
+## Iteration 9 — Participants page (2026-03-11)
+
+### What was implemented
+- Implemented the Racers page with a Groups sidebar (create/edit/delete) and a Racers table filtered by selected group
+- Added inline racer editing, add-racer validation, single delete confirmation, and bulk select/delete
+- Implemented drag-and-drop to move racers between groups
+- Added CSV import modal with preview + column mapping (normalizes headers and uploads to backend CSV import)
+- Added CSV export for the currently displayed racers (respects group + search filters)
+
+### Files created
+- frontend/src/api/endpoints/importExport.ts
+
+### Git commits
+- 2a998d6 feat(frontend): implement racers page
+
+### Test results
+- Frontend: `npm run lint` ✅
+- Frontend: `npm run build` ✅
+
+### Notes
+- CSV parsing uses `papaparse` for robust header handling; imports are normalized to the backend’s expected header schema.
+
+

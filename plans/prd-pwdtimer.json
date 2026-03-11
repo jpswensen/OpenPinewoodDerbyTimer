@@ -220,7 +220,7 @@
       "Add loading states and error handling",
       "Commit the participants page"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
