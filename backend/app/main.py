@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .models.database import init_db
-from .routers import connection, groups, import_export, racers, races, websocket
+from .routers import certificates, connection, groups, import_export, racers, races, websocket
 from .services.connection_manager import ConnectionManager
 from .services.event_bus import event_bus
 
@@ -39,6 +39,7 @@ app.include_router(racers.router)
 app.include_router(import_export.router)
 app.include_router(races.router)
 app.include_router(connection.router)
+app.include_router(certificates.router)
 app.include_router(websocket.router)
 
 
