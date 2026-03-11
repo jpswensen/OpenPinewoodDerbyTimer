@@ -25,6 +25,10 @@ export function createRacer(payload: RacerCreate): Promise<Racer> {
   return apiFetch('/racers', { method: 'POST', body: payload })
 }
 
+export function bulkCreateRacers(payload: RacerCreate[]): Promise<Racer[]> {
+  return apiFetch('/racers/bulk', { method: 'POST', body: payload })
+}
+
 export function updateRacer(id: number, payload: RacerUpdate): Promise<Racer> {
   return apiFetch(`/racers/${id}`, { method: 'PUT', body: payload })
 }
