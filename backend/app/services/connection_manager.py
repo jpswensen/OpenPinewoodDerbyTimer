@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 from app.services.serial_connection import list_serial_ports
 from app.services.timer_protocol import (
+    TimerState,
     TimerStatus,
     extract_framed_messages,
     format_command_arm,
@@ -79,6 +80,7 @@ class ConnectionManager:
         self._reconnect_backoff_max_seconds = reconnect_backoff_max_seconds
 
         self._status = ConnectionStatus(connection_state="disconnected", mode=None, target=None)
+        self._last_heat_complete_start_time_us: int | None = None
 
     async def shutdown(self) -> None:
         await self.disconnect()
@@ -226,6 +228,14 @@ class ConnectionManager:
 
         await self._publish("race_state", self._timer_status_payload(status))
         await self._publish("lane_times", self._lane_times_payload(status))
+
+        if status.state == TimerState.FINISHED and status.start_time_us is not None:
+            if self._last_heat_complete_start_time_us != status.start_time_us:
+                self._last_heat_complete_start_time_us = status.start_time_us
+                await self._publish(
+                    "heat_complete",
+                    {"start_time_us": status.start_time_us, **self._lane_times_payload(status)},
+                )
 
     async def _runner(self) -> None:
         backoff = self._reconnect_backoff_seconds

@@ -6,6 +6,7 @@ import os
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.services.event_bus import event_bus
+from app.services.timer_protocol import TimerState
 
 router = APIRouter(tags=["websocket"])
 
@@ -56,6 +57,19 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             await websocket.send_json(
                 {"type": "lane_times", "payload": _lane_times_payload(status.last_status)}
             )
+            if (
+                status.last_status.state == TimerState.FINISHED
+                and status.last_status.start_time_us is not None
+            ):
+                await websocket.send_json(
+                    {
+                        "type": "heat_complete",
+                        "payload": {
+                            "start_time_us": status.last_status.start_time_us,
+                            **_lane_times_payload(status.last_status),
+                        },
+                    }
+                )
 
     try:
         while True:
