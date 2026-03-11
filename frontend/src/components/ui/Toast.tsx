@@ -5,6 +5,8 @@ import { cn } from '../../lib/cn'
 
 type ToastVariant = 'info' | 'success' | 'error'
 
+export type { ToastVariant }
+
 type ToastItem = {
   id: string
   title: string
