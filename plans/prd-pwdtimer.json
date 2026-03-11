@@ -182,7 +182,7 @@
       "Write tests for certificate generation",
       "Commit the certificate feature"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",

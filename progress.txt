@@ -136,3 +136,26 @@
 
 ### Notes
 - PDF generation uses ReportLab; `weasyprint` is listed as an optional dependency (skipped on macOS via env marker).
+
+
+## Iteration 7 — Certificate generation (2026-03-11)
+
+### What was implemented
+- Added ReportLab certificate generator (decorative border + seal) for winner and participation certificates
+- Added `/api/certificates/preview` and `/api/certificates/generate` (batch, one certificate per page)
+- Added backend tests covering preview + generation flows
+
+### Files created
+- backend/app/services/certificate_generator.py
+- backend/app/routers/certificates.py
+- backend/tests/test_certificates.py
+
+### Git commits
+- f37a8dc feat(backend): certificate generation
+
+### Test results
+- Backend: `python3 -m unittest discover -s tests -p 'test*.py' -v` ✅
+
+### Notes
+- Uses built-in fonts by default; will auto-register optional bundled fonts from `backend/app/assets/fonts/` if present.
+
