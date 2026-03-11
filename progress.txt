@@ -109,7 +109,7 @@
 - backend/tests/{test_api_participants,test_api_races,test_communications,test_websocket}.py
 
 ### Git commits
-- (next commit) feat(backend): add APIs and real-time websocket
+- 1aeff30 feat(backend): add APIs and real-time websocket
 
 ### Test results
 - Backend: `python3 -m unittest discover -s tests -p 'test*.py' -v` ✅
