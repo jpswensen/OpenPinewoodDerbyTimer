@@ -1,0 +1,21 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--tb=short -q"
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/models/init_db.py"]
+concurrency = ["greenlet", "thread"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__",
+]
