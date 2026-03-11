@@ -1,44 +1,211 @@
-# PWDTimer - Pinewood Derby Timer Management System
+# PWDTimer — Pinewood Derby Timer Management System
 
-A modern race management system for Pinewood Derby events with real-time timing, automatic heat scheduling, and professional results/certificates generation.
+A modern, full-stack race management system for Pinewood Derby events. PWDTimer combines a **FastAPI** backend, a **React** web frontend, and custom **ESP32 firmware** to deliver real-time timing, automatic heat scheduling, and professional results & certificate generation — all from a browser.
 
 ## Features
 
-- **Participant Management**: Organize racers into groups (Tiger Cubs, Wolf, Bear, Webelos, etc.)
-- **Automatic Heat Scheduling**: Fair lane rotation ensuring each racer competes in each lane
-- **Real-time Race Display**: Live timing with place indicators as cars finish
-- **Multiple Connection Methods**: USB Serial and WiFi/mDNS support
-- **Results & Rankings**: Automatic calculation of averages, bests, and overall standings
-- **PDF Export**: Professional race results documents
-- **Award Certificates**: Fancy certificates for winners and participants
-- **Dark Mode**: Full light/dark theme support
+| Feature | Description |
+|---------|-------------|
+| **Participant Management** | Organize racers into groups (Tiger Cubs, Wolf, Bear, Webelos, etc.) with CSV import/export |
+| **Automatic Heat Scheduling** | Fair round-robin lane rotation ensuring every racer competes in every lane |
+| **Real-time Race Display** | Live timing via WebSocket with place indicators as cars finish |
+| **Multiple Connections** | USB Serial and WiFi (TCP + mDNS) support for the timing hardware |
+| **Results & Rankings** | Automatic average/best time calculation, overall and per-group standings |
+| **PDF Export** | Professional race results documents (letter/A4, portrait/landscape) |
+| **Award Certificates** | Decorative winner and participation certificates with batch generation |
+| **Dark Mode** | Full light/dark theme support with persistent preference |
+| **Projector Mode** | Fullscreen race display optimized for venue projection |
 
-## System Components
+## Architecture
 
-- **Backend**: FastAPI + SQLite (Python)
-- **Frontend**: React + TypeScript + Tailwind CSS
-- **Firmware**: ESP32 with PlatformIO
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        Web Browser                               │
+│  React + TypeScript + Tailwind CSS + TanStack Query              │
+│  Pages: Home │ Racers │ Heats │ Race │ Results │ Certs │ Settings│
+└──────────────────┬───────────────────────┬───────────────────────┘
+                   │ REST API (HTTP)       │ WebSocket (/ws)
+                   ▼                       ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                      FastAPI Backend                             │
+│  SQLAlchemy + SQLite │ Pydantic │ ReportLab (PDF/Certificates)   │
+│  Routers: races, racers, groups, connection, certificates, ws    │
+│  Services: heat_scheduler, connection_manager, timer_protocol    │
+└──────────────────┬───────────────────────────────────────────────┘
+                   │ Serial (USB) or TCP (WiFi)
+                   ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                    ESP32 Firmware                                 │
+│  FreeRTOS: Core 1 (timing ISRs) │ Core 0 (comms + OTA)          │
+│  HAL → GPIO interrupts, μs precision                             │
+│  Protocol: $state,startTime,currentTime,numLanes,t0,...*         │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+## Prerequisites
+
+| Requirement | Minimum Version | Purpose |
+|-------------|-----------------|---------|
+| **Python** | 3.11+ | Backend server |
+| **Node.js** | 18+ | Frontend build and dev server |
+| **npm** | 9+ | Frontend dependency management |
+| **PlatformIO** | 6+ | Firmware compilation and flashing (optional — only needed for hardware) |
 
 ## Quick Start
+
+### 1. Clone and enter the project
+
+```bash
+cd PWDTimer
+```
+
+### 2. Set up the Python environment
+
+```bash
+python3 -m venv env
+source env/bin/activate        # macOS / Linux
+# env\Scripts\activate         # Windows
+pip install -r backend/requirements.txt
+```
+
+### 3. Start the application
 
 ```bash
 ./start.sh
 ```
 
-Then open http://localhost:5173 in your browser.
+This launches both the **backend** (Uvicorn on `http://localhost:8000`) and the **frontend** dev server (Vite on `http://localhost:5173`). Open your browser to **http://localhost:5173**.
+
+> **Tip:** You can override ports with environment variables:
+> ```bash
+> BACKEND_PORT=9000 FRONTEND_PORT=3000 ./start.sh
+> ```
+
+### 4. (Optional) Start services individually
+
+```bash
+# Backend only
+cd backend
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+# Frontend only (in another terminal)
+cd frontend
+npm install   # first time only
+npm run dev
+```
+
+## Project Structure
+
+```
+PWDTimer/
+├── backend/                    # FastAPI application
+│   ├── app/
+│   │   ├── main.py             # App entry point, CORS, startup events
+│   │   ├── models/
+│   │   │   ├── database.py     # Async SQLAlchemy engine + session
+│   │   │   ├── models.py       # ORM models (Group, Racer, Race, Heat, ...)
+│   │   │   └── schemas.py      # Pydantic request/response schemas
+│   │   ├── routers/            # API route handlers
+│   │   │   ├── races.py        # Race & heat management
+│   │   │   ├── racers.py       # Racer CRUD
+│   │   │   ├── groups.py       # Group management
+│   │   │   ├── certificates.py # PDF certificate generation
+│   │   │   ├── connection.py   # Hardware connection control
+│   │   │   ├── websocket.py    # Real-time WebSocket endpoint
+│   │   │   └── import_export.py# CSV import/export
+│   │   └── services/           # Business logic
+│   │       ├── heat_scheduler.py       # Round-robin heat generation
+│   │       ├── race_results.py         # Results calculation
+│   │       ├── connection_manager.py   # Hardware connection state
+│   │       ├── timer_protocol.py       # Message parsing/formatting
+│   │       ├── event_bus.py            # WebSocket event broadcasting
+│   │       ├── pdf_generator.py        # PDF results export
+│   │       ├── certificate_generator.py# Decorative certificates
+│   │       ├── serial_connection.py    # Serial port handling
+│   │       ├── tcp_connection.py       # TCP socket handling
+│   │       └── mdns_discovery.py       # mDNS device discovery
+│   ├── tests/                  # pytest test suite (253+ tests, 90%+ coverage)
+│   └── requirements.txt
+├── frontend/                   # React + TypeScript application
+│   ├── src/
+│   │   ├── pages/              # 7 main page components
+│   │   ├── components/         # Reusable UI components
+│   │   ├── hooks/              # Custom React hooks (WebSocket, etc.)
+│   │   ├── context/            # React context providers (theme)
+│   │   ├── api/                # Typed API client functions
+│   │   └── lib/                # Utilities (settings, helpers)
+│   ├── package.json
+│   └── vite.config.ts
+├── firmware/                   # ESP32 PlatformIO project
+│   ├── src/
+│   │   ├── hal/                # Hardware abstraction layer
+│   │   ├── comm/               # Communication protocol
+│   │   ├── app/                # Application controller
+│   │   ├── config/             # NVS persistent configuration
+│   │   └── main.cpp            # Firmware entry point
+│   ├── test/                   # Native unit tests (78+ tests)
+│   └── platformio.ini
+├── docs/                       # Documentation
+├── start.sh                    # One-command startup script
+└── .gitignore
+```
 
 ## Documentation
 
-See the `docs/` folder for:
-- User Guide
-- API Reference
-- Firmware Setup
-- Troubleshooting
+| Document | Description |
+|----------|-------------|
+| [User Guide](docs/user-guide.md) | Step-by-step usage instructions for running a derby event |
+| [API Reference](docs/api-reference.md) | Complete REST API and WebSocket endpoint documentation |
+| [Firmware Setup](docs/firmware-setup.md) | Flashing instructions, hardware connections, pin mappings |
+| [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
+| [Python Implementation Review](docs/01_python_implementation_review.md) | Analysis of the legacy PyQt5 application |
+| [Firmware/Hardware Review](docs/02_firmware_hardware_review.md) | Analysis of legacy firmware and board designs |
+| [Code Review Findings](docs/03_code_review_findings.md) | Issues found and fixed during quality review |
+
+## Running Tests
+
+### Backend
+
+```bash
+cd backend
+source ../env/bin/activate      # if not already active
+pip install -r requirements.txt # includes pytest, pytest-asyncio, pytest-cov
+python -m pytest tests/ -v --cov=app --cov-report=term-missing
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run test                    # Vitest unit/integration tests (97+ tests)
+npm run lint                    # ESLint
+npm run build                   # TypeScript + production build check
+```
+
+### Firmware (native tests, no hardware required)
+
+```bash
+cd firmware
+# With PlatformIO:
+pio test -e native
+
+# Or with system g++/clang++:
+g++ -std=c++17 -Isrc -Ilib/unity/src \
+  test/test_mock_hal.cpp src/hal/mock_hal.cpp lib/unity/src/unity.c \
+  -o test_hal && ./test_hal
+```
 
 ## Hardware
 
-This system works with custom ESP32-based timing hardware supporting 4-8 lanes.
-See `SunnysidePWDTimer/Board/` for hardware designs.
+This system works with custom ESP32-based timing hardware supporting **4–8 lanes**. See the [Firmware Setup Guide](docs/firmware-setup.md) for detailed hardware connection information and the `SunnysidePWDTimer/Board/` directory for Eagle schematic and PCB designs.
+
+### Supported Boards
+
+| Board | MCU | Lanes | Connection |
+|-------|-----|-------|------------|
+| PWDTimer V2 (primary) | ESP32 | 8 | USB Serial + WiFi AP |
+| SunnysideTimer V1 | ESP8266 | 4 | USB Serial only |
 
 ## License
 
