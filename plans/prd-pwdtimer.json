@@ -200,7 +200,7 @@
       "Set up WebSocket connection hook in PWDTimer/frontend/src/hooks/useWebSocket.ts",
       "Commit the frontend scaffold"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",

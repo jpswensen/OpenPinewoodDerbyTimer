@@ -159,3 +159,31 @@
 ### Notes
 - Uses built-in fonts by default; will auto-register optional bundled fonts from `backend/app/assets/fonts/` if present.
 
+
+## Iteration 8 — Frontend scaffold (2026-03-11)
+
+### What was implemented
+- Added app shell with sidebar layout and routes for: /, /racers, /heats, /race, /results, /certificates, /settings
+- Implemented theme context with persisted light/dark mode (Tailwind `dark` class + localStorage) and Radix Theme integration
+- Added typed API client + endpoint modules and an auto-reconnecting WebSocket hook
+- Added basic reusable UI components: Button, Card, Table, Modal, Toast
+
+### Files created
+- frontend/src/api/
+- frontend/src/components/
+- frontend/src/context/
+- frontend/src/hooks/
+- frontend/src/pages/
+- frontend/src/providers/
+- frontend/src/routes/
+
+### Git commits
+- 14ccb5e feat(frontend): scaffold app shell
+
+### Test results
+- Frontend: `npm run lint` ✅
+- Frontend: `npm run build` ✅
+
+### Notes
+- Vite dev server proxies `/api` and `/ws` to `http://127.0.0.1:8000`.
+
