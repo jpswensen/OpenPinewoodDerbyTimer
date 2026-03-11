@@ -101,6 +101,12 @@ class HeatRead(HeatBase):
     id: int
 
 
+class HeatWithLanesRead(HeatRead):
+    model_config = ConfigDict(from_attributes=True)
+
+    lanes: list[HeatLaneRead]
+
+
 class HeatLaneBase(BaseModel):
     heat_id: int
     lane_number: int

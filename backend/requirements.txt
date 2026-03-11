@@ -5,3 +5,7 @@ aiosqlite
 pydantic>=2.0
 python-multipart
 aiofiles
+httpx
+pyserial
+pyserial-asyncio
+zeroconf

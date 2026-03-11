@@ -92,3 +92,27 @@
 
 ### Notes
 - Times are stored as integers in microseconds where applicable to preserve precision.
+
+
+## Iteration 5 — APIs + real-time WebSocket (2026-03-11)
+
+### What was implemented
+- Added Groups + Racers CRUD APIs, bulk racer creation, and CSV import/export
+- Added race + heat APIs including deterministic round-robin scheduling, repeats, and result recalculation
+- Added serial/TCP + mDNS connection layer with a framed `$...*` status parser and connection status endpoints
+- Added `/ws` WebSocket endpoint with event types: `connection_status`, `race_state`, `lane_times`, `heat_complete`
+- Implemented an internal EventBus for broadcasting to all connected WebSocket clients
+
+### Files created
+- backend/app/routers/{groups,racers,import_export,races,connection,websocket}.py
+- backend/app/services/{heat_scheduler,race_results,timer_protocol,tcp_connection,serial_connection,mdns_discovery,connection_manager,event_bus}.py
+- backend/tests/{test_api_participants,test_api_races,test_communications,test_websocket}.py
+
+### Git commits
+- (next commit) feat(backend): add APIs and real-time websocket
+
+### Test results
+- Backend: `python3 -m unittest discover -s tests -p 'test*.py' -v` ✅
+
+### Notes
+- WebSocket auth is optional: set `PWD_TIMER_WS_TOKEN` and connect with `/ws?token=...`.

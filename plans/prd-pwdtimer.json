@@ -87,7 +87,7 @@
       "Write comprehensive tests in PWDTimer/backend/tests/test_api_participants.py",
       "Commit the participant API"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "backend",
@@ -106,7 +106,7 @@
       "Write tests in PWDTimer/backend/tests/test_api_races.py",
       "Commit the race scheduling API"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "backend",
@@ -127,7 +127,7 @@
       "Write tests in PWDTimer/backend/tests/test_communications.py",
       "Commit the communication layer"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "backend",
@@ -145,7 +145,7 @@
       "Write WebSocket integration tests",
       "Commit the WebSocket implementation"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "backend",

@@ -47,8 +47,6 @@ class Group(Base):
 
     racers: Mapped[list["Racer"]] = relationship(
         back_populates="group",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
         lazy="selectin",
     )
 
