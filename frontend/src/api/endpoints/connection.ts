@@ -39,3 +39,41 @@ export function resetTimer(): Promise<ConnectionStatus> {
 export function setTimerLanes(numLanes: number): Promise<ConnectionStatus> {
   return apiFetch('/connection/set-lanes', { method: 'POST', body: { num_lanes: numLanes } })
 }
+
+export type MdnsService = {
+  name: string
+  host: string
+  port: number
+  addresses: string[]
+}
+
+export type MdnsDiscoveryResponse = {
+  services: MdnsService[]
+  pwdtimer_local_addresses: string[]
+}
+
+export function discoverMdns(timeoutSeconds = 1.5): Promise<MdnsDiscoveryResponse> {
+  return apiFetch('/connection/discover-mdns', { query: { timeout_seconds: timeoutSeconds } })
+}
+
+export type ConnectRequest =
+  | {
+      mode: 'serial'
+      serial_port: string
+      baudrate?: number
+      auto_reconnect?: boolean
+    }
+  | {
+      mode: 'tcp'
+      host: string
+      port?: number
+      auto_reconnect?: boolean
+    }
+
+export function connectTimer(payload: ConnectRequest): Promise<ConnectionStatus> {
+  return apiFetch('/connection/connect', { method: 'POST', body: payload })
+}
+
+export function disconnectTimer(): Promise<ConnectionStatus> {
+  return apiFetch('/connection/disconnect', { method: 'POST' })
+}

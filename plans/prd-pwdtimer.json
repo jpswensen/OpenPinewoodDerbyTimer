@@ -293,7 +293,7 @@
       "Show generation progress for large batches",
       "Commit the certificates page"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "frontend",
@@ -311,7 +311,7 @@
       "Save all settings to localStorage and sync with backend",
       "Commit the settings page"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "firmware",

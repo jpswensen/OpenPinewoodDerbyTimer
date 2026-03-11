@@ -12,6 +12,7 @@ import { listHeats, listRaces } from '../api/endpoints/races'
 import type { Racer } from '../api/endpoints/racers'
 import { listRacers } from '../api/endpoints/racers'
 import { cn } from '../lib/cn'
+import { STORAGE_KEYS, clampNumber, readBool, readNumber, readString, writeValue } from '../lib/settings'
 import { useWebSocket } from '../hooks/useWebSocket'
 
 type TimerConnectionStatus = {
@@ -78,7 +79,23 @@ function elapsedUsFromRaceState(rs: TimerRaceState | null): number | null {
   return cur >= start ? cur - start : cur
 }
 
-function playBeep(kind: 'start' | 'finish') {
+function playSound(kind: 'start' | 'finish') {
+  const volume = clampNumber(readNumber(STORAGE_KEYS.soundVolume, 1, { min: 0, max: 1 }), 0, 1)
+  if (volume <= 0) return
+
+  const urlKey = kind === 'start' ? STORAGE_KEYS.soundStartUrl : STORAGE_KEYS.soundFinishUrl
+  const url = readString(urlKey, '').trim()
+  if (url) {
+    try {
+      const a = new Audio(url)
+      a.volume = volume
+      void a.play().catch(() => {})
+      return
+    } catch {
+      // fall back to oscillator
+    }
+  }
+
   const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
   if (!Ctx) return
 
@@ -94,7 +111,7 @@ function playBeep(kind: 'start' | 'finish') {
   g.connect(ctx.destination)
 
   const t0 = ctx.currentTime
-  g.gain.exponentialRampToValueAtTime(0.15, t0 + 0.02)
+  g.gain.exponentialRampToValueAtTime(0.15 * volume, t0 + 0.02)
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + (kind === 'start' ? 0.18 : 0.35))
 
   o.start()
@@ -145,7 +162,7 @@ export function RacePage() {
   const [laneTimes, setLaneTimes] = useState<TimerLaneTimes | null>(null)
 
   const [selectedRaceId, setSelectedRaceId] = useState<number | null>(null)
-  const [soundEnabled, setSoundEnabled] = useState(false)
+  const [soundEnabled, setSoundEnabled] = useState(() => readBool(STORAGE_KEYS.soundEnabled, false))
   const soundEnabledRef = useRef(soundEnabled)
 
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -192,6 +209,7 @@ export function RacePage() {
 
   useEffect(() => {
     soundEnabledRef.current = soundEnabled
+    writeValue(STORAGE_KEYS.soundEnabled, soundEnabled)
   }, [soundEnabled])
 
   const onJsonMessage = useCallback((data: unknown) => {
@@ -206,7 +224,7 @@ export function RacePage() {
     } else if (msg.type === 'lane_times') {
       setLaneTimes(msg.payload as TimerLaneTimes)
     } else if (msg.type === 'heat_complete') {
-      if (soundEnabledRef.current) playBeep('finish')
+      if (soundEnabledRef.current) playSound('finish')
     }
   }, [])
 
@@ -219,7 +237,7 @@ export function RacePage() {
     const cur = raceState?.state_name ?? null
     const prev = prevStateRef.current
     if (soundEnabled && cur && cur !== prev) {
-      if (cur.toUpperCase() === 'IN_RACE') playBeep('start')
+      if (cur.toUpperCase() === 'IN_RACE') playSound('start')
     }
     prevStateRef.current = cur
   }, [raceState?.state_name, soundEnabled])

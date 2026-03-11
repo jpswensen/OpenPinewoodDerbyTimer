@@ -66,3 +66,49 @@
 
 ### Notes
 - When repeat heats create multiple runs in the same lane, the standings use the best time for that lane.
+
+
+## Iteration 4 — Certificates page (2026-03-11)
+
+### What was implemented
+- Completed the Certificates page (`/certificates`) with certificate type selection (winner / participation / custom message), recipient selection (all / group / individual), and event customization (name/date/issued-by/message).
+- Added PDF preview flows (sample + current selection) and actions to download or open the generated PDF for printing.
+- Added basic generation progress UX (busy state + estimated page count where applicable).
+- Updated the PRD to mark the certificates-page milestone as complete.
+
+### Files created
+- N/A
+
+### Git commits
+- N/A
+
+### Test results
+- Frontend: `npm run lint` ✅
+- Frontend: `npm run build` ✅
+
+### Notes
+- The “Custom message” option uses the participation-certificate layout with an additional message field.
+
+
+## Iteration 5 — Settings page (2026-03-11)
+
+### What was implemented
+- Implemented the Settings page (`/settings`) with Serial vs Network connection configuration.
+- Added connect/disconnect controls with live status, serial port refresh, and mDNS discovery helpers.
+- Added lane count configuration (4/6/8) with “Apply to timer” (`SET_LANES`) plus local persistence.
+- Added race timing parameters (min/max valid time) stored in localStorage.
+- Added theme controls (light/dark) and sound controls (enable, volume, optional custom URLs) stored in localStorage.
+- Wired the Race page to use the stored sound settings (enable/volume/custom URLs).
+
+### Files created
+- frontend/src/lib/settings.ts
+
+### Git commits
+- N/A
+
+### Test results
+- Frontend: `npm run lint` ✅
+- Frontend: `npm run build` ✅
+
+### Notes
+- “Sync with backend” is implemented for connection + lane count; other settings are currently client-side only.
