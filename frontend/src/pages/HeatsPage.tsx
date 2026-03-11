@@ -367,8 +367,8 @@ export function HeatsPage() {
               <div className="text-sm text-slate-600 dark:text-slate-300">Create a race to begin scheduling heats.</div>
             )}
 
-            {racesQ.isError ? <div className="text-sm text-red-600">{(racesQ.error as Error).message}</div> : null}
-            {heatsQ.isError ? <div className="text-sm text-red-600">{(heatsQ.error as Error).message}</div> : null}
+            {racesQ.isError ? <div className="text-sm text-red-600">{racesQ.error instanceof Error ? racesQ.error.message : 'Failed to load races'}</div> : null}
+            {heatsQ.isError ? <div className="text-sm text-red-600">{heatsQ.error instanceof Error ? heatsQ.error.message : 'Failed to load heats'}</div> : null}
           </div>
         </Card>
 

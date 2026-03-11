@@ -66,7 +66,7 @@ async def bulk_create_racers(
         found = set(res.scalars().all())
         missing = sorted(group_ids - found)
         if missing:
-            raise HTTPException(status_code=400, detail={"unknown_group_ids": missing})
+            raise HTTPException(status_code=400, detail=f"Unknown group_ids: {missing}")
 
     racers: list[Racer] = []
     for p in payload:

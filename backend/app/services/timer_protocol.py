@@ -39,6 +39,7 @@ def extract_framed_messages(buffer: bytes) -> tuple[list[str], bytes]:
     while True:
         start = buffer.find(b"$")
         if start < 0:
+            # No frame start found; discard junk (can't be part of a valid frame)
             return frames, b""
 
         if start > 0:
@@ -95,6 +96,9 @@ def parse_status_message(frame: str) -> TimerStatus:
 
     lane_times_raw = parts[4:] if len(parts) > 4 else []
     lane_times: list[int | None] = [_to_int(v) for v in lane_times_raw]
+
+    if num_lanes is not None and num_lanes < 0:
+        raise ValueError("invalid frame: num_lanes must be >= 0")
 
     if num_lanes is not None and num_lanes >= 0:
         # Normalize to exactly num_lanes entries.

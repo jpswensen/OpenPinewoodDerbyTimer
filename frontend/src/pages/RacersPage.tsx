@@ -555,7 +555,7 @@ export function RacersPage() {
           </div>
 
           {groupsQ.isError ? (
-            <div className="text-sm text-red-600">{(groupsQ.error as Error).message}</div>
+            <div className="text-sm text-red-600">{groupsQ.error instanceof Error ? groupsQ.error.message : 'Failed to load groups'}</div>
           ) : null}
 
           <div className="mt-2 space-y-1">
@@ -700,7 +700,7 @@ export function RacersPage() {
           </div>
 
           {racersQ.isError ? (
-            <div className="mt-3 text-sm text-red-600">{(racersQ.error as Error).message}</div>
+            <div className="mt-3 text-sm text-red-600">{racersQ.error instanceof Error ? racersQ.error.message : 'Failed to load racers'}</div>
           ) : null}
 
           <div className="mt-4">

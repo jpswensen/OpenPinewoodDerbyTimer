@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -57,7 +57,7 @@ class RacerRead(RacerBase):
 class RaceBase(BaseModel):
     name: str
     num_lanes: int
-    status: str = "setup"
+    status: Literal["setup", "in_progress", "completed"] = "setup"
 
 
 class RaceCreate(RaceBase):
@@ -67,7 +67,7 @@ class RaceCreate(RaceBase):
 class RaceUpdate(BaseModel):
     name: Optional[str] = None
     num_lanes: Optional[int] = None
-    status: Optional[str] = None
+    status: Optional[Literal["setup", "in_progress", "completed"]] = None
 
 
 class RaceRead(RaceBase):
@@ -80,7 +80,7 @@ class RaceRead(RaceBase):
 class HeatBase(BaseModel):
     race_id: int
     heat_number: int
-    status: str = "pending"
+    status: Literal["pending", "in_progress", "completed"] = "pending"
     scheduled_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
@@ -90,7 +90,7 @@ class HeatCreate(HeatBase):
 
 
 class HeatUpdate(BaseModel):
-    status: Optional[str] = None
+    status: Optional[Literal["pending", "in_progress", "completed"]] = None
     scheduled_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
@@ -102,8 +102,6 @@ class HeatRead(HeatBase):
 
 
 class HeatWithLanesRead(HeatRead):
-    model_config = ConfigDict(from_attributes=True)
-
     lanes: list[HeatLaneRead]
 
 

@@ -5,6 +5,7 @@ export type Race = {
   name: string
   num_lanes: number
   status: 'setup' | 'in_progress' | 'completed'
+  created_at: string
 }
 
 export type HeatLane = {
@@ -23,7 +24,7 @@ export type Heat = {
   lanes: HeatLane[]
 }
 
-export type RaceCreate = { name: string; num_lanes: number }
+export type RaceCreate = { name: string; num_lanes: number; status?: Race['status'] }
 export type RaceUpdate = Partial<RaceCreate> & { status?: Race['status'] }
 
 export function listRaces(): Promise<Race[]> {
@@ -74,4 +75,18 @@ export function repeatHeat(heatId: number): Promise<Heat> {
 
 export function reorderHeats(raceId: number, heatIds: number[]): Promise<Heat[]> {
   return apiFetch(`/races/${raceId}/heats/reorder`, { method: 'PUT', body: { heat_ids: heatIds } })
+}
+
+export type RaceResult = {
+  id: number
+  race_id: number
+  racer_id: number
+  average_time: number | null
+  best_time: number | null
+  total_points: number | null
+  overall_place: number | null
+}
+
+export function getRaceResults(raceId: number): Promise<RaceResult[]> {
+  return apiFetch(`/races/${raceId}/results`)
 }

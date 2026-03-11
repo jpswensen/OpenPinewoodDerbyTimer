@@ -24,6 +24,9 @@ def generate_round_robin_heats(
     if n == 0:
         return []
 
+    if len(set(racer_ids)) != n:
+        raise ValueError("racer_ids must not contain duplicates")
+
     l = num_lanes
 
     if n >= l:

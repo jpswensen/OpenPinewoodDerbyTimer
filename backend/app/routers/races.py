@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
@@ -11,7 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.database import get_db_session
 from app.models.models import Group, Heat, HeatLane, Race, RaceResult, Racer
-from app.models.schemas import HeatWithLanesRead, RaceCreate, RaceRead, RaceUpdate
+from app.models.schemas import HeatWithLanesRead, RaceCreate, RaceRead, RaceResultRead, RaceUpdate
 from app.services.event_bus import event_bus
 from app.services.heat_scheduler import generate_round_robin_heats
 from app.services.pdf_generator import (
@@ -94,6 +95,20 @@ async def delete_race(race_id: int, session: AsyncSession = Depends(get_db_sessi
 
     await session.delete(race)
     await session.commit()
+
+
+@router.get("/races/{race_id}/results", response_model=list[RaceResultRead])
+async def get_race_results(
+    race_id: int, session: AsyncSession = Depends(get_db_session)
+) -> list[RaceResult]:
+    race = await session.get(Race, race_id)
+    if race is None:
+        raise HTTPException(status_code=404, detail="Race not found")
+
+    res = await session.execute(
+        select(RaceResult).where(RaceResult.race_id == race_id).order_by(RaceResult.overall_place)
+    )
+    return list(res.scalars().all())
 
 
 @router.post(
@@ -231,7 +246,7 @@ class HeatLaneUpdate(BaseModel):
 
 
 class HeatUpdateRequest(BaseModel):
-    status: str | None = None
+    status: Literal["pending", "in_progress", "completed"] | None = None
     lanes: list[HeatLaneUpdate] | None = None
 
 
@@ -254,6 +269,7 @@ async def update_heat(
             heat.completed_at = _utcnow()
         if payload.status == "pending":
             heat.completed_at = None
+            heat.scheduled_at = None
 
     if payload.lanes is not None:
         lanes_by_num = {hl.lane_number: hl for hl in heat.lanes}
@@ -271,7 +287,7 @@ async def update_heat(
             found = set(res.scalars().all())
             missing = sorted(set(racer_ids) - found)
             if missing:
-                raise HTTPException(status_code=400, detail={"unknown_racer_ids": missing})
+                raise HTTPException(status_code=400, detail=f"Unknown racer_ids: {missing}")
 
         for upd in payload.lanes:
             hl = lanes_by_num.get(upd.lane_number)
@@ -338,7 +354,7 @@ async def update_heat(
     return heat_out
 
 
-@router.post("/heats/{heat_id}/repeat", response_model=HeatWithLanesRead, status_code=201)
+@router.post("/heats/{heat_id}/repeat", response_model=HeatWithLanesRead, status_code=status.HTTP_201_CREATED)
 async def repeat_heat(heat_id: int, session: AsyncSession = Depends(get_db_session)) -> Heat:
     res = await session.execute(
         select(Heat).where(Heat.id == heat_id).options(selectinload(Heat.lanes))
@@ -356,7 +372,6 @@ async def repeat_heat(heat_id: int, session: AsyncSession = Depends(get_db_sessi
         race_id=heat.race_id,
         heat_number=next_num,
         status="pending",
-        scheduled_at=_utcnow(),
     )
     new_heat.lanes = [
         HeatLane(lane_number=hl.lane_number, racer_id=hl.racer_id) for hl in heat.lanes

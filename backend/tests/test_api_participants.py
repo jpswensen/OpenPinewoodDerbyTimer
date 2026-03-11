@@ -140,7 +140,7 @@ class TestAPIParticipants(unittest.IsolatedAsyncioTestCase):
             json=[{"name": "C", "group_id": 123456}],
         )
         self.assertEqual(resp.status_code, 400)
-        self.assertIn("unknown_group_ids", resp.json()["detail"])
+        self.assertIn("Unknown group_ids", resp.json()["detail"])
 
     async def test_csv_export_and_import(self) -> None:
         gid = (await self.client.post("/api/groups", json={"name": "Bears"})).json()["id"]

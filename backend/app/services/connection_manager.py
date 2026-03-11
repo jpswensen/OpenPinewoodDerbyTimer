@@ -152,9 +152,9 @@ class ConnectionManager:
     async def _send(self, payload: bytes) -> None:
         async with self._lock:
             writer = self._writer
-        if writer is None:
-            raise RuntimeError("not connected")
-        writer.write(payload)
+            if writer is None:
+                raise RuntimeError("not connected")
+            writer.write(payload)
         if hasattr(writer, "drain"):
             await writer.drain()
 
