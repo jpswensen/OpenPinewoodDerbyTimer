@@ -116,3 +116,23 @@
 
 ### Notes
 - WebSocket auth is optional: set `PWD_TIMER_WS_TOKEN` and connect with `/ws?token=...`.
+
+
+## Iteration 6 — PDF results export (2026-03-11)
+
+### What was implemented
+- Added ReportLab-based PDF generator for race results with a professional header, metadata, and tabular layout
+- Added `GET /api/races/{id}/export/pdf` supporting group-scoped exports plus page size (letter/A4) and orientation (portrait/landscape)
+- Added backend tests validating the PDF endpoint returns a valid PDF payload
+
+### Files created
+- backend/app/services/pdf_generator.py
+
+### Git commits
+- ceb101b feat(backend): export race results PDF
+
+### Test results
+- Backend: `python3 -m unittest discover -s tests -p 'test*.py' -v` ✅
+
+### Notes
+- PDF generation uses ReportLab; `weasyprint` is listed as an optional dependency (skipped on macOS via env marker).

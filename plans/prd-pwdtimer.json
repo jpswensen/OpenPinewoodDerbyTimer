@@ -163,7 +163,7 @@
       "Write tests for PDF generation",
       "Commit the PDF export feature"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "backend",
