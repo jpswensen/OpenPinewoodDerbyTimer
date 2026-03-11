@@ -68,7 +68,7 @@
 - `start.sh` expects `python3` to be a suitable environment (recommended: activate the repo venv before running).
 
 
-## Iteration 4 — Backend DB models (2026-03-10)
+## Iteration 4 — Backend DB models (2026-03-11)
 
 ### What was implemented
 - Added async SQLAlchemy + SQLite database layer (engine/session helpers and init/create-all)
@@ -85,7 +85,7 @@
 - backend/tests/test_models.py
 
 ### Git commits
-- (pending)
+- 747bdca feat(db): add async SQLAlchemy models
 
 ### Test results
 - Backend: `python -m unittest discover -s tests -p 'test*.py' -v` ✅
