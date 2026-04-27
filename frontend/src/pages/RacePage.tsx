@@ -710,10 +710,14 @@ export function RacePage() {
               const heatLane = currentHeat.lanes.find((l) => l.lane_number === laneNumber)
               const racer = heatLane?.racer_id != null ? racersById.get(heatLane.racer_id) : undefined
 
-              const rawTimeUs = laneTimes?.lane_end_times_us?.[laneNumber - 1] ?? null
+              const liveRawUs = laneTimes?.lane_end_times_us?.[laneNumber - 1] ?? null
               // Firmware sends 0 for lanes that haven't finished yet; render as null.
-              const timeUs = rawTimeUs != null && rawTimeUs > 0 ? rawTimeUs : null
-              const place = laneTimes?.lane_places ? laneTimes.lane_places[String(laneNumber)] ?? null : null
+              const liveTimeUs = liveRawUs != null && liveRawUs > 0 ? liveRawUs : null
+              const livePlace = laneTimes?.lane_places ? laneTimes.lane_places[String(laneNumber)] ?? null : null
+              // Fall back to persisted heat results when there's no live time
+              // (e.g. user navigated back to a previously-run heat).
+              const timeUs = liveTimeUs ?? heatLane?.time_microseconds ?? null
+              const place = livePlace ?? heatLane?.place ?? null
               const isDnf = heatLane?.dnf ?? false
               const isDisabled = racer?.disabled ?? false
 
