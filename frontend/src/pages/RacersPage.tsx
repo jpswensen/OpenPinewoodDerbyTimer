@@ -83,6 +83,8 @@ export function RacersPage() {
   const [groupDraft, setGroupDraft] = useState<GroupDraft>({ name: '', description: '' })
   const [groupEditing, setGroupEditing] = useState<Group | null>(null)
   const [groupDeleteConfirm, setGroupDeleteConfirm] = useState<Group | null>(null)
+  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<number>>(() => new Set())
+  const [bulkGroupDeleteConfirmOpen, setBulkGroupDeleteConfirmOpen] = useState(false)
 
   const [racerDraft, setRacerDraft] = useState<RacerDraft>({ name: '', car_name: '', car_number: '' })
   const [racerEditingId, setRacerEditingId] = useState<number | null>(null)
@@ -127,6 +129,12 @@ export function RacersPage() {
     const ids = new Set(racers.map((r) => r.id))
     setSelectedIds((prev) => new Set([...prev].filter((id) => ids.has(id))))
   }, [racers])
+
+  useEffect(() => {
+    // Drop group selections that no longer exist (e.g., after delete).
+    const ids = new Set(groups.map((g) => g.id))
+    setSelectedGroupIds((prev) => new Set([...prev].filter((id) => ids.has(id))))
+  }, [groups])
 
   const visibleRacers = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -503,6 +511,42 @@ export function RacersPage() {
     exportVisibleCsv()
   }
 
+  function toggleGroupSelected(id: number, next?: boolean) {
+    setSelectedGroupIds((prev) => {
+      const copy = new Set(prev)
+      const shouldSelect = next ?? !copy.has(id)
+      if (shouldSelect) copy.add(id)
+      else copy.delete(id)
+      return copy
+    })
+  }
+
+  async function deleteSelectedGroups() {
+    const ids = [...selectedGroupIds]
+    if (!ids.length) return
+
+    try {
+      await Promise.all(ids.map((id) => deleteGroup(id)))
+      const deleted = new Set(ids)
+      if (selectedGroupId != null && deleted.has(selectedGroupId)) {
+        setSelectedGroupId(null)
+      }
+      setSelectedGroupIds(new Set())
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['groups'] }),
+        qc.invalidateQueries({ queryKey: ['racers'] }),
+      ])
+      toast({
+        variant: 'success',
+        title: `Deleted ${ids.length} group(s)`,
+        description: 'Racers from those groups are kept and now appear under All.',
+      })
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : 'Bulk delete failed'
+      toast({ variant: 'error', title: 'Delete groups failed', description: msg })
+    }
+  }
+
   async function deleteSelectedRacers() {
     const ids = [...selectedIds]
     if (!ids.length) return
@@ -527,8 +571,9 @@ export function RacersPage() {
           <div>
             <h1 className="text-xl font-semibold">Racers</h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Manage groups and participants. Drag racers (or your current selection) onto a group to move them. Drop onto
-              “All” to unassign.
+              Manage groups and participants. Drag racers (or your current selection) onto a group on the left to move
+              them — works from the “All” list and from any sub-group. Drop onto “All” to unassign. Deleting a group
+              keeps its racers (they fall back to “All”).
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -548,11 +593,23 @@ export function RacersPage() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[240px_minmax(0,1fr)]">
         <Card className="p-3">
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2 flex items-center justify-between gap-2">
             <div className="text-sm font-semibold">Groups</div>
-            <Button variant="ghost" onClick={openCreateGroup}>
-              + Add
-            </Button>
+            <div className="flex items-center gap-1">
+              {selectedGroupIds.size > 0 ? (
+                <Button
+                  variant="ghost"
+                  className="px-2 py-1 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                  onClick={() => setBulkGroupDeleteConfirmOpen(true)}
+                  aria-label={`Delete ${selectedGroupIds.size} selected group(s)`}
+                >
+                  Delete ({selectedGroupIds.size})
+                </Button>
+              ) : null}
+              <Button variant="ghost" onClick={openCreateGroup}>
+                + Add
+              </Button>
+            </div>
           </div>
 
           {groupsQ.isError ? (
@@ -594,6 +651,14 @@ export function RacersPage() {
                 onDragLeave={() => setDragOverGroupId(null)}
                 onDrop={(e) => dropRacersToGroup(e, g.id)}
               >
+                <input
+                  type="checkbox"
+                  checked={selectedGroupIds.has(g.id)}
+                  onChange={(e) => toggleGroupSelected(g.id, e.target.checked)}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label={`Select group ${g.name}`}
+                  className="shrink-0"
+                />
                 <button
                   type="button"
                   className="min-w-0 flex-1 truncate text-left text-sm"
@@ -909,6 +974,43 @@ export function RacersPage() {
                 } catch {
                   // errors are toasted by the mutation
                 }
+              }}
+              disabled={deleteGroupM.isPending}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={bulkGroupDeleteConfirmOpen}
+        title={`Delete ${selectedGroupIds.size} group(s)`}
+        onClose={() => setBulkGroupDeleteConfirmOpen(false)}
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-slate-700 dark:text-slate-200">
+            The following group(s) will be deleted. Racers assigned to them will be kept and will appear under{' '}
+            <span className="font-semibold">All</span>.
+          </p>
+          <ul className="max-h-48 overflow-auto rounded-md border border-slate-200 px-3 py-2 text-sm dark:border-slate-800">
+            {groups
+              .filter((g) => selectedGroupIds.has(g.id))
+              .map((g) => (
+                <li key={g.id} className="truncate">
+                  • {g.name}
+                </li>
+              ))}
+          </ul>
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="ghost" onClick={() => setBulkGroupDeleteConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                setBulkGroupDeleteConfirmOpen(false)
+                await deleteSelectedGroups()
               }}
               disabled={deleteGroupM.isPending}
             >
