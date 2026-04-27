@@ -100,6 +100,11 @@ def parse_status_message(frame: str) -> TimerStatus:
     if num_lanes is not None and num_lanes < 0:
         raise ValueError("invalid frame: num_lanes must be >= 0")
 
+    # Hard cap at 8 — the firmware never declares more than 8 active lanes.
+    # A larger value indicates a corrupt frame; clamp defensively.
+    if num_lanes is not None and num_lanes > 8:
+        num_lanes = 8
+
     if num_lanes is not None and num_lanes >= 0:
         # Normalize to exactly num_lanes entries.
         if len(lane_times) < num_lanes:

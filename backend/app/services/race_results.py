@@ -51,9 +51,11 @@ async def recalculate_race_results(session: AsyncSession, race_id: int) -> None:
     all_rows = res.all()
 
     # Find the worst (slowest) legitimate time across the entire race.
+    # `time_microseconds == 0` is an inactive-lane sentinel from the firmware
+    # (it always emits 8 lane fields zero-padded), not a 0-second finish.
     worst_time: int | None = None
     for _, _, time_us, _, is_dnf in all_rows:
-        if time_us is not None and not is_dnf:
+        if time_us is not None and time_us > 0 and not is_dnf:
             if worst_time is None or time_us > worst_time:
                 worst_time = time_us
 
@@ -78,7 +80,7 @@ async def recalculate_race_results(session: AsyncSession, race_id: int) -> None:
                 times_by_racer[int(racer_id)].append(worst_time)
             # Points penalty: last place + 1 in this heat.
             points_by_racer[int(racer_id)].append(racers_per_heat[heat_id] + 1)
-        elif time_us is not None:
+        elif time_us is not None and time_us > 0:
             times_by_racer[int(racer_id)].append(int(time_us))
             if place is not None:
                 points_by_racer[int(racer_id)].append(int(place))

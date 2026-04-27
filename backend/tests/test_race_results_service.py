@@ -175,3 +175,42 @@ class TestRecalculateRaceResults:
         assert results[racers[1].id].average_time == 3150000
         # Racer 0 still first
         assert results[racers[0].id].overall_place == 1
+
+
+    async def test_zero_time_microseconds_treated_as_did_not_finish(
+        self, db_session: AsyncSession
+    ):
+        """
+        Regression: the firmware always emits 8 lane fields zero-padded for
+        inactive lanes. If a stray 0us reaches the database (e.g. from an old
+        client), it must NOT be counted as a 0-second finish — it should be
+        ignored exactly like None.
+        """
+        race, racers = await self._setup_race(db_session, 2, 2)
+
+        # Heat 1: Racer 0 finishes legitimately, Racer 1 has bogus 0us time.
+        await self._create_completed_heat(
+            db_session, race.id, 1,
+            [(racers[0].id, 3000000), (racers[1].id, 0)],
+        )
+        # Heat 2: Both finish legitimately.
+        await self._create_completed_heat(
+            db_session, race.id, 2,
+            [(racers[0].id, 3100000), (racers[1].id, 3400000)],
+        )
+
+        await recalculate_race_results(db_session, race.id)
+        await db_session.commit()
+
+        from sqlalchemy import select
+        res = await db_session.execute(
+            select(RaceResult).where(RaceResult.race_id == race.id)
+        )
+        results = {rr.racer_id: rr for rr in res.scalars().all()}
+
+        # Racer 1's 0us time must be excluded from best/average. Only the
+        # 3.4s finish counts.
+        assert results[racers[1].id].best_time == 3400000
+        assert results[racers[1].id].average_time == 3400000
+        # Racer 0 unaffected.
+        assert results[racers[0].id].best_time == 3000000

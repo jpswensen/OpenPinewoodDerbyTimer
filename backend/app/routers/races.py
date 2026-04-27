@@ -320,13 +320,22 @@ async def update_heat(
         if len(assigned) != len(set(assigned)):
             raise HTTPException(status_code=400, detail="Duplicate racer_id within a heat is not allowed")
 
-        # Recompute per-heat place ordering.
+        # Recompute per-heat place ordering. A `time_microseconds` of 0 means
+        # "lane never finished" (firmware zero-pads inactive lanes); exclude it.
         finished = [
             hl
             for hl in heat.lanes
-            if hl.racer_id is not None and hl.time_microseconds is not None and not hl.dnf
+            if hl.racer_id is not None
+            and hl.time_microseconds is not None
+            and hl.time_microseconds > 0
+            and not hl.dnf
         ]
-        finished.sort(key=lambda x: (x.time_microseconds or 0, x.lane_number))
+        finished.sort(
+            key=lambda x: (
+                x.time_microseconds if x.time_microseconds is not None else float("inf"),
+                x.lane_number,
+            )
+        )
 
         for hl in heat.lanes:
             hl.place = None

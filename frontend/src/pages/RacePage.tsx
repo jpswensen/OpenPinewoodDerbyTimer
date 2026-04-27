@@ -360,7 +360,7 @@ export function RacePage() {
         const laneUpdates = Array.from({ length: numLanes }, (_, i) => ({
           lane_number: i + 1,
           time_microseconds: laneTimes.lane_end_times_us?.[i] ?? null,
-        })).filter((l) => l.time_microseconds != null) as Array<{ lane_number: number; time_microseconds: number | null }>
+        })).filter((l) => l.time_microseconds != null && l.time_microseconds > 0) as Array<{ lane_number: number; time_microseconds: number | null }>
         await updateHeat(currentHeat.id, { status: 'completed', lanes: laneUpdates.length ? laneUpdates : undefined })
       } else if (currentHeat.status !== 'completed') {
         await updateHeat(currentHeat.id, { status: 'completed' })
@@ -382,9 +382,11 @@ export function RacePage() {
   })
 
   function hasUnsavedResults(): boolean {
-    // Live timer times recorded but not yet accepted
+    // Live timer times recorded but not yet accepted. Treat 0us as "didn't
+    // finish" because the firmware always emits 8 lane fields zero-padded for
+    // inactive lanes — `0` does NOT mean "lane finished at t=0".
     const times = laneTimes?.lane_end_times_us ?? []
-    if (times.some((t) => t != null) && currentHeat?.status !== 'completed') return true
+    if (times.some((t) => t != null && t > 0) && currentHeat?.status !== 'completed') return true
     // DNF flags set on an incomplete heat (need Accept to persist results)
     if (currentHeat && currentHeat.status !== 'completed' && currentHeat.lanes.some((l) => l.dnf)) return true
     return false
@@ -539,6 +541,12 @@ export function RacePage() {
               {timerConn.last_error}
             </div>
           ) : null}
+
+          {timerConn?.connection_state !== 'connected' && raceState && raceState.state_name !== 'RESET' ? (
+            <div className="mt-4 rounded-md border border-red-300 bg-red-100 p-3 text-sm font-semibold text-red-900 dark:border-red-800 dark:bg-red-950/50 dark:text-red-100">
+              ⚠ Timer connection lost mid-race — recorded times may be incomplete. Reconnect before accepting results.
+            </div>
+          ) : null}
         </Card>
 
         <Card>
@@ -570,7 +578,22 @@ export function RacePage() {
             <Button
               className="w-full"
               variant="primary"
-              onClick={() => acceptAndAdvanceM.mutate()}
+              onClick={() => {
+                // Guard: confirm if accepting a heat that has neither any
+                // real lane finishes nor any DNFs marked. Prevents silently
+                // completing heats when the timer was offline.
+                const times = laneTimes?.lane_end_times_us ?? []
+                const anyFinish = times.some((t) => t != null && t > 0)
+                const anyDnf = !!currentHeat?.lanes.some((l) => l.dnf)
+                const completing = currentHeat && currentHeat.status !== 'completed'
+                if (completing && !anyFinish && !anyDnf) {
+                  const ok = window.confirm(
+                    'No lane times or DNFs are recorded for this heat. Accept anyway and mark it completed with no results?',
+                  )
+                  if (!ok) return
+                }
+                acceptAndAdvanceM.mutate()
+              }}
               disabled={!currentHeat || acceptAndAdvanceM.isPending}
             >
               {acceptAndAdvanceM.isPending ? 'Saving…' : 'Accept Results & Next Heat'}
@@ -636,7 +659,9 @@ export function RacePage() {
               const heatLane = currentHeat.lanes.find((l) => l.lane_number === laneNumber)
               const racer = heatLane?.racer_id != null ? racersById.get(heatLane.racer_id) : undefined
 
-              const timeUs = laneTimes?.lane_end_times_us?.[laneNumber - 1] ?? null
+              const rawTimeUs = laneTimes?.lane_end_times_us?.[laneNumber - 1] ?? null
+              // Firmware sends 0 for lanes that haven't finished yet; render as null.
+              const timeUs = rawTimeUs != null && rawTimeUs > 0 ? rawTimeUs : null
               const place = laneTimes?.lane_places ? laneTimes.lane_places[String(laneNumber)] ?? null : null
               const isDnf = heatLane?.dnf ?? false
               const isDisabled = racer?.disabled ?? false
