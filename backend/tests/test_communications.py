@@ -95,6 +95,63 @@ class TestConnectionManager(unittest.IsolatedAsyncioTestCase):
 
         await mgr.disconnect()
 
+    async def test_wait_for_fresh_status_returns_after_new_frame(self) -> None:
+        """wait_for_fresh_status must unblock as soon as last_message_at advances."""
+        reader = asyncio.StreamReader()
+        sent: list[bytes] = []
+
+        class _Writer:
+            def write(self, data: bytes) -> None:
+                sent.append(data)
+            async def drain(self) -> None: return
+            def close(self) -> None: return
+            async def wait_closed(self) -> None: return
+
+        async def fake_dial(host, port, **_):
+            # Feed one frame so connection_state becomes connected.
+            reader.feed_data(b"$1,-1,1000,4,0,0,0,0,0,0,0,0*")
+            return reader, _Writer()
+
+        mgr = ConnectionManager(tcp_dialer=fake_dial, reconnect_backoff_seconds=0.01)
+        await mgr.connect_tcp(host="127.0.0.1", port=8080, auto_reconnect=False)
+        await asyncio.sleep(0.05)  # let runner process the first frame
+
+        since = mgr.get_status().last_message_at
+        self.assertIsNotNone(since)
+
+        # Schedule a new frame 80 ms from now.
+        async def _feed_later():
+            await asyncio.sleep(0.08)
+            reader.feed_data(b"$1,-1,2000,4,0,0,0,0,0,0,0,0*")
+
+        asyncio.create_task(_feed_later())
+
+        start = asyncio.get_event_loop().time()
+        await mgr.wait_for_fresh_status(since, timeout=1.0)
+        elapsed = asyncio.get_event_loop().time() - start
+
+        # Should have waited ~80 ms, not the full timeout.
+        self.assertGreater(elapsed, 0.05)
+        self.assertLess(elapsed, 0.5)
+        # last_message_at must have advanced.
+        self.assertGreater(mgr.get_status().last_message_at, since)
+
+        await mgr.disconnect()
+
+    async def test_wait_for_fresh_status_times_out_gracefully(self) -> None:
+        """wait_for_fresh_status must return (not raise) after timeout with no new frame."""
+        mgr = ConnectionManager(reconnect_backoff_seconds=0.01)
+        # Not connected, no frames — last_message_at is None after we fake it.
+        from datetime import datetime, timezone
+        fake_since = datetime.now(timezone.utc)
+
+        start = asyncio.get_event_loop().time()
+        await mgr.wait_for_fresh_status(fake_since, timeout=0.15)
+        elapsed = asyncio.get_event_loop().time() - start
+
+        self.assertGreaterEqual(elapsed, 0.14)  # waited out the timeout
+        self.assertLess(elapsed, 0.5)           # didn't hang
+
 
 class TestConnectionAPI(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:

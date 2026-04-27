@@ -91,7 +91,9 @@ async def status(request: Request) -> dict:
 async def arm(request: Request) -> dict:
     mgr = _manager(request)
     try:
+        since = mgr.get_status().last_message_at
         await mgr.send_arm()
+        await mgr.wait_for_fresh_status(since)
     except RuntimeError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return mgr.get_status().to_dict()
@@ -101,7 +103,9 @@ async def arm(request: Request) -> dict:
 async def reset(request: Request) -> dict:
     mgr = _manager(request)
     try:
+        since = mgr.get_status().last_message_at
         await mgr.send_reset()
+        await mgr.wait_for_fresh_status(since)
     except RuntimeError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return mgr.get_status().to_dict()
@@ -115,7 +119,9 @@ class SetLanesRequest(BaseModel):
 async def set_lanes(payload: SetLanesRequest, request: Request) -> dict:
     mgr = _manager(request)
     try:
+        since = mgr.get_status().last_message_at
         await mgr.send_set_lanes(payload.num_lanes)
+        await mgr.wait_for_fresh_status(since)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except RuntimeError as e:

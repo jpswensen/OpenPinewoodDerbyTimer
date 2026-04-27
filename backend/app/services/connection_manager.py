@@ -150,6 +150,24 @@ class ConnectionManager:
     async def send_set_lanes(self, num_lanes: int) -> None:
         await self._send(format_command_set_lanes(num_lanes))
 
+    async def wait_for_fresh_status(self, since: datetime | None, timeout: float = 1.5) -> None:
+        """Block until a status frame newer than `since` is received, or timeout.
+
+        Call this after sending a command so the HTTP response reflects the
+        firmware's reaction rather than the stale pre-command status.
+        The firmware broadcasts at 10 Hz during SET/IN_RACE and 1 Hz at idle,
+        so 1.5 s covers the worst case with comfortable margin.
+        """
+        if since is None:
+            await asyncio.sleep(0.15)
+            return
+        deadline = asyncio.get_event_loop().time() + timeout
+        while asyncio.get_event_loop().time() < deadline:
+            last = self._status.last_message_at
+            if last is not None and last > since:
+                return
+            await asyncio.sleep(0.05)  # poll at 20 Hz
+
     async def _send(self, payload: bytes) -> None:
         async with self._lock:
             writer = self._writer
