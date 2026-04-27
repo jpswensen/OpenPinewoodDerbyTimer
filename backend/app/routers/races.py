@@ -105,6 +105,12 @@ async def get_race_results(
     if race is None:
         raise HTTPException(status_code=404, detail="Race not found")
 
+    # Self-heal: recompute on read so stale RaceResult rows from older
+    # builds (or from any consumer that bypassed update_heat) can never
+    # surface bogus averages/places. The recompute is cheap and idempotent.
+    await recalculate_race_results(session, race_id)
+    await session.commit()
+
     res = await session.execute(
         select(RaceResult).where(RaceResult.race_id == race_id).order_by(RaceResult.overall_place)
     )
@@ -468,6 +474,11 @@ async def export_race_results_pdf(
         scope_label = f"Group: {grp.name}"
 
     num_heats = await session.scalar(select(func.count(Heat.id)).where(Heat.race_id == race_id))
+
+    # Self-heal: recompute before reading RaceResult so stale rows from
+    # older builds can never leak into the export.
+    await recalculate_race_results(session, race_id)
+    await session.commit()
 
     res = await session.execute(
         select(func.distinct(HeatLane.racer_id))
