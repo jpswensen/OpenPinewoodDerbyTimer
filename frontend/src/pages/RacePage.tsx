@@ -6,7 +6,7 @@ import { Button } from '../components/ui/Button'
 import { useToast } from '../components/ui/Toast'
 
 import { ApiError } from '../api/client'
-import { armTimer, resetTimer, setTimerLanes } from '../api/endpoints/connection'
+import { resetTimer, setTimerLanes } from '../api/endpoints/connection'
 import type { Heat, HeatUpdateRequest, Race } from '../api/endpoints/races'
 import { listHeats, listRaces, updateHeat } from '../api/endpoints/races'
 import type { Racer } from '../api/endpoints/racers'
@@ -332,16 +332,6 @@ export function RacePage() {
     }
   }
 
-  async function doArm() {
-    try {
-      await armTimer()
-      toast({ variant: 'success', title: 'Timer armed' })
-    } catch (e) {
-      const msg = e instanceof ApiError ? e.message : 'Failed to arm timer'
-      toast({ variant: 'error', title: 'Arm failed', description: msg })
-    }
-  }
-
   async function doReset() {
     try {
       await resetTimer()
@@ -551,12 +541,17 @@ export function RacePage() {
 
         <Card>
           <div className="text-sm font-semibold">Controls</div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <Button onClick={doArm} disabled={timerConn?.connection_state !== 'connected'}>
-              Arm
-            </Button>
-            <Button variant="secondary" onClick={doReset} disabled={timerConn?.connection_state !== 'connected'}>
-              Reset
+          <div className="mt-3">
+            {/* ARM is a no-op in this firmware — the timer arms itself automatically
+                when the start gate is physically in the set position. Reset is the
+                only control needed to clear times and restart the state machine. */}
+            <Button
+              className="w-full"
+              variant="secondary"
+              onClick={doReset}
+              disabled={timerConn?.connection_state !== 'connected'}
+            >
+              Reset Timer
             </Button>
           </div>
 
