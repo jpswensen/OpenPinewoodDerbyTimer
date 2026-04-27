@@ -1,12 +1,13 @@
 // comms.cpp — serial-only host communication.
 //
-// Runs on Core 1, sharing it with stateMachineTask and (when WiFi is enabled)
-// the ESP-IDF WiFi/TCP-IP protocol tasks, which are pinned to Core 1 by the
-// SDK.  Core 0 is reserved entirely for the tight timing loop in gatesCoreTask.
+// Runs on Core 0, sharing it with stateMachineTask and (when WiFi is enabled)
+// the ESP-IDF WiFi/TCP-IP protocol tasks, which are pinned to Core 0 by
+// default (CONFIG_ESP32_WIFI_TASK_CORE_ID=0).  Core 1 is reserved for the
+// tight timing loop in gatesCoreTask plus the suspended Arduino loop().
 //
 // commsCoreTask is the single writer to the RX line buffer; stateMachineTask
 // is the single reader via poll_command().  HardwareSerial TX is internally
-// synchronised so send_status() is safe to call from any Core-1 task.
+// synchronised so send_status() is safe to call from any Core-0 task.
 
 #include <Arduino.h>
 #include <string.h>
@@ -16,7 +17,7 @@
 #include "comms.h"
 #include "gates.h"
 
-static const int   COMMS_TASK_CORE = 1;   // same core as WiFi and stateMachineTask
+static const int   COMMS_TASK_CORE = 0;   // same core as WiFi and stateMachineTask
 static const int   COMMS_TASK_PRIO = 5;
 
 // RX line buffer (single reader, drained in loop()).

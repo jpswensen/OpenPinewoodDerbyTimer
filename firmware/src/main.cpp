@@ -1,26 +1,26 @@
 // main.cpp — PWDTimer firmware entry point.
 //
 // Core assignment:
-//   Core 0 — gatesCoreTask (configMAX_PRIORITIES-1)
+//   Core 1 — gatesCoreTask (configMAX_PRIORITIES-1)
 //               Tight polling loop: reads both GPIO banks each iteration,
 //               captures Xtensa CCOUNT for sub-µs timing, yields only during
 //               RESET/FINISHED.  No other application code runs here so the
 //               timing loop is never preempted by I/O.
 //
-//   Core 1 — commsCoreTask (priority 5)
-//               Serial RX accumulator.  Shares Core 1 with stateMachineTask
+//   Core 0 — commsCoreTask (priority 5)
+//               Serial RX accumulator.  Shares Core 0 with stateMachineTask
 //               and, when WiFi is enabled, the ESP-IDF WiFi/TCP-IP tasks
-//               (which are pinned to Core 1 by the SDK).
+//               (which are pinned to Core 0 by default).
 //
-//   Core 1 — stateMachineTask (priority 3)
+//   Core 0 — stateMachineTask (priority 3)
 //               Reads gate data, processes host commands, drives the race
 //               state machine, and broadcasts periodic status frames.
 //               Runs at a lower priority than commsCoreTask so serial bytes
 //               are never dropped.
 //
 //   Core 1 — loopTask (Arduino default, priority 1)
-//               loop() is intentionally idle; all application work lives in
-//               the tasks above.
+//               loop() is intentionally suspended; the only Core-1 work
+//               aside from FreeRTOS IDLE1 is gatesCoreTask.
 
 #include <Arduino.h>
 #include "state.h"
@@ -30,7 +30,7 @@
 static const uint32_t RACE_STATUS_INTERVAL_MS = 100;   // 10 Hz during SET / IN_RACE
 static const uint32_t IDLE_STATUS_INTERVAL_MS = 1000;  // 1  Hz otherwise
 
-static const int STATE_TASK_CORE  = 1;
+static const int STATE_TASK_CORE  = 0;
 static const int STATE_TASK_PRIO  = 3;
 static const int STATE_TASK_STACK = 4096;
 

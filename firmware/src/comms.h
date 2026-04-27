@@ -11,7 +11,7 @@ enum RecvMessage_t {
     ARM_MSG,
 };
 
-// Initialise serial and start the comm task on Core 1 (shared with WiFi).
+// Initialise serial and start the comm task on Core 0 (shared with WiFi).
 void setup_comms();
 
 // Build and broadcast a status frame for the given snapshot.

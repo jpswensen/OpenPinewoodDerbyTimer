@@ -8,16 +8,20 @@
 //   Start gate    -> GPIO 22
 //
 // Architecture:
-//   Core 0 owns gatesCoreTask at configMAX_PRIORITIES-1.  It runs a tight
+//   Core 1 owns gatesCoreTask at configMAX_PRIORITIES-1.  It runs a tight
 //   polling loop that snapshots the Xtensa CCOUNT register and then reads
 //   both GPIO banks back-to-back so every lane in the same iteration shares
 //   a single cycle-accurate timestamp (~4 ns resolution at 240 MHz).
 //   All six bank-0 lanes plus the start gate are captured in one 32-bit read;
 //   the two bank-1 lanes are captured in a second read ~8 ns later.
+//   Arduino's loop() also defaults to Core 1 but is suspended in main.cpp,
+//   so the timing task is the only thing scheduled here aside from the FreeRTOS
+//   IDLE1 task.
 //
-//   Core 1 owns commsCoreTask, the state-machine task, and the WiFi stack
-//   (when enabled — ESP-IDF pins WiFi protocol tasks to Core 1).
-//   Core 1 calls read_gates() at ~10 Hz and reset_gates() on RESET commands.
+//   Core 0 owns commsCoreTask, the state-machine task, and the WiFi stack
+//   (when enabled — ESP-IDF pins WiFi/TCP-IP protocol tasks to Core 0 by
+//   default via CONFIG_ESP32_WIFI_TASK_CORE_ID=0).
+//   Core 0 calls read_gates() at ~10 Hz and reset_gates() on RESET commands.
 //
 // Data protection:
 //   Timing variables (s_startUs, s_startCycles, s_endCycles, s_laneFinished)
@@ -40,7 +44,7 @@
 
 // ── Configuration ──────────────────────────────────────────────────────────
 
-static const int GATES_TASK_CORE  = 0;               // Core 0: timing only
+static const int GATES_TASK_CORE  = 1;               // Core 1: timing + idle loop()
 static const int GATES_TASK_PRIO  = configMAX_PRIORITIES - 1;
 static const int GATES_TASK_STACK = 2048;
 
