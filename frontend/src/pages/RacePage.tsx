@@ -212,6 +212,8 @@ export function RacePage() {
 
   const [timerConn, setTimerConn] = useState<TimerConnectionStatus | null>(null)
   const [raceState, setRaceState] = useState<TimerRaceState | null>(null)
+  const raceStateRecvAtMsRef = useRef<number | null>(null)
+  const [nowTickMs, setNowTickMs] = useState<number>(() => performance.now())
   const [laneTimes, setLaneTimes] = useState<TimerLaneTimes | null>(null)
 
   const [selectedRaceId, setSelectedRaceId] = useState<number | null>(null)
@@ -296,6 +298,7 @@ export function RacePage() {
     if (msg.type === 'connection_status') {
       setTimerConn(msg.payload as TimerConnectionStatus)
     } else if (msg.type === 'race_state') {
+      raceStateRecvAtMsRef.current = performance.now()
       setRaceState(msg.payload as TimerRaceState)
     } else if (msg.type === 'lane_times') {
       setLaneTimes(msg.payload as TimerLaneTimes)
@@ -324,6 +327,21 @@ export function RacePage() {
     onFs()
     return () => document.removeEventListener('fullscreenchange', onFs)
   }, [])
+
+  // Local clock tick: keep the elapsed-time display advancing between
+  // firmware status frames. Without this, the display only updates when a
+  // new WebSocket "race_state" arrives and otherwise looks frozen.
+  useEffect(() => {
+    const sn = (raceState?.state_name ?? '').toUpperCase()
+    if (sn !== 'IN_RACE') return
+    let raf = 0
+    const loop = () => {
+      setNowTickMs(performance.now())
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [raceState?.state_name])
 
   async function toggleFullscreen() {
     try {
@@ -484,7 +502,18 @@ export function RacePage() {
   }
 
   const stateMeta = mapStateLabel(raceState?.state_name)
-  const elapsedUs = elapsedUsFromRaceState(raceState)
+  const elapsedUs = (() => {
+    const base = elapsedUsFromRaceState(raceState)
+    if (base == null) return null
+    const sn = (raceState?.state_name ?? '').toUpperCase()
+    if (sn !== 'IN_RACE') return base
+    const recvAt = raceStateRecvAtMsRef.current
+    if (recvAt == null) return base
+    // Interpolate forward from the last firmware sample so the display
+    // ticks smoothly even when status frames arrive infrequently.
+    const driftUs = Math.max(0, Math.round((nowTickMs - recvAt) * 1000))
+    return base + driftUs
+  })()
 
   const timerStateText = timerConn
     ? `${timerConn.connection_state}${timerConn.mode ? ` • ${timerConn.mode}` : ''}${timerConn.target ? ` • ${timerConn.target}` : ''}`
