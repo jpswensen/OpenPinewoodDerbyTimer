@@ -109,7 +109,9 @@ async def update_racer(
     if payload.car_number is not None:
         r.car_number = payload.car_number
 
-    if payload.group_id is not None:
+    # group_id is nullable: explicit None means "unassign". Use model_fields_set
+    # to distinguish "field omitted" from "field explicitly set to null".
+    if "group_id" in payload.model_fields_set:
         await _validate_group_id(payload.group_id, session)
         r.group_id = payload.group_id
 

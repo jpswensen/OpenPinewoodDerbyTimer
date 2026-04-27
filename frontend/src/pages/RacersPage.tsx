@@ -784,6 +784,7 @@ export function RacersPage() {
                   <th>Name</th>
                   <th>Car</th>
                   <th className="w-28">Car #</th>
+                  {selectedGroupId == null ? <th className="w-40">Group</th> : null}
                   <th className="w-24">Status</th>
                   <th className="w-40">Actions</th>
                 </tr>
@@ -791,7 +792,7 @@ export function RacersPage() {
               <tbody>
                 {anyLoading ? (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-sm text-slate-600 dark:text-slate-300">
+                    <td colSpan={selectedGroupId == null ? 7 : 6} className="py-6 text-center text-sm text-slate-600 dark:text-slate-300">
                       Loading…
                     </td>
                   </tr>
@@ -861,6 +862,29 @@ export function RacersPage() {
                           )}
                         </td>
 
+                        {selectedGroupId == null ? (
+                          <td className="align-top">
+                            <select
+                              value={r.group_id ?? ''}
+                              onChange={(e) => {
+                                const v = e.target.value
+                                const next = v === '' ? null : Number(v)
+                                if (next === (r.group_id ?? null)) return
+                                moveRacersM.mutate({ ids: [r.id], group_id: next })
+                              }}
+                              className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-950"
+                              aria-label={`Group for ${r.name}`}
+                            >
+                              <option value="">— (All)</option>
+                              {groups.map((g) => (
+                                <option key={g.id} value={g.id}>
+                                  {g.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        ) : null}
+
                         <td className="align-top">
                           <button
                             type="button"
@@ -904,7 +928,7 @@ export function RacersPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={6} className="py-6 text-center text-sm text-slate-600 dark:text-slate-300">
+                    <td colSpan={selectedGroupId == null ? 7 : 6} className="py-6 text-center text-sm text-slate-600 dark:text-slate-300">
                       No racers.
                     </td>
                   </tr>
