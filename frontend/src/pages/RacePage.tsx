@@ -333,6 +333,17 @@ export function RacePage() {
   }
 
   async function doReset() {
+    // Guard: warn if a race is actively in progress or has unsaved finish times.
+    const sn = (raceState?.state_name ?? '').toUpperCase()
+    const times = laneTimes?.lane_end_times_us ?? []
+    const hasUnsaved = times.some((t) => t != null && t > 0)
+    if (sn === 'IN_RACE' || (sn === 'FINISHED' && hasUnsaved)) {
+      const msg =
+        sn === 'IN_RACE'
+          ? 'A race is currently in progress. Resetting will erase all lane times immediately. Continue?'
+          : 'There are unsaved finish times. Resetting will erase them. Accept the results first, or continue to discard?'
+      if (!window.confirm(msg)) return
+    }
     try {
       await resetTimer()
       toast({ variant: 'success', title: 'Timer reset' })
