@@ -541,6 +541,24 @@ export function RacePage() {
 
         <Card>
           <div className="text-sm font-semibold">Controls</div>
+
+          {/* Operator guide: contextual hint based on current timer state */}
+          {timerConn?.connection_state === 'connected' && (() => {
+            const sn = (raceState?.state_name ?? '').toUpperCase()
+            const hints: Record<string, { icon: string; text: string }> = {
+              RESET:    { icon: '①', text: 'Close the start gate to arm the timer.' },
+              SET:      { icon: '②', text: 'Gate armed. Load cars, then release the gate to start.' },
+              IN_RACE:  { icon: '③', text: 'Race in progress…' },
+              FINISHED: { icon: '④', text: 'Race finished. Review times, then accept results below.' },
+            }
+            const hint = hints[sn]
+            return hint ? (
+              <div className="mt-2 rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                <span className="mr-1 font-bold">{hint.icon}</span>{hint.text}
+              </div>
+            ) : null
+          })()}
+
           <div className="mt-3">
             {/* ARM is a no-op in this firmware — the timer arms itself automatically
                 when the start gate is physically in the set position. Reset is the
