@@ -118,7 +118,10 @@ bool TcpComm::receive(char* buf, size_t maxLen)
 
 bool TcpComm::isConnected() const
 {
-    return m_initialised && m_client && m_client.connected();
+    // WiFiClient::operator bool() and connected() are non-const in the
+    // Arduino ESP32 library, so we need a const_cast here.
+    auto& client = const_cast<WiFiClient&>(m_client);
+    return m_initialised && client && client.connected();
 }
 
 // ---------------------------------------------------------------------------

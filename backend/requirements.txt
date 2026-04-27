@@ -11,7 +11,11 @@ pyserial
 pyserial-asyncio
 zeroconf
 reportlab
+Pillow
 weasyprint; platform_system != "Darwin"
+
+# Desktop app
+pywebview>=5.0
 
 # Test dependencies
 pytest>=8.0

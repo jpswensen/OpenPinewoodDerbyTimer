@@ -121,3 +121,16 @@ async def set_lanes(payload: SetLanesRequest, request: Request) -> dict:
     except RuntimeError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return mgr.get_status().to_dict()
+
+
+@router.post("/serial-monitor")
+async def toggle_serial_monitor(request: Request) -> dict:
+    mgr = _manager(request)
+    mgr._serial_monitor_enabled = not mgr._serial_monitor_enabled
+    return {"enabled": mgr._serial_monitor_enabled}
+
+
+@router.get("/serial-monitor")
+async def serial_monitor_status(request: Request) -> dict:
+    mgr = _manager(request)
+    return {"enabled": mgr._serial_monitor_enabled}

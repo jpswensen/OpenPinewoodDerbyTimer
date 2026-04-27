@@ -46,6 +46,7 @@ async def create_racer(
         car_name=payload.car_name,
         car_number=payload.car_number,
         group_id=payload.group_id,
+        disabled=payload.disabled,
     )
     session.add(r)
     await session.commit()
@@ -111,6 +112,9 @@ async def update_racer(
     if payload.group_id is not None:
         await _validate_group_id(payload.group_id, session)
         r.group_id = payload.group_id
+
+    if payload.disabled is not None:
+        r.disabled = payload.disabled
 
     await session.commit()
     await session.refresh(r)

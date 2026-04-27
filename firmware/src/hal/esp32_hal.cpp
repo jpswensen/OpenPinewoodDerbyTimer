@@ -14,6 +14,8 @@ volatile int         ESP32TimerHAL::s_numLanes    = MAX_LANES;
 
 const int ESP32TimerHAL::s_laneIndices[MAX_LANES] = {0, 1, 2, 3, 4, 5, 6, 7};
 
+constexpr int ESP32TimerHAL::LANE_PINS[MAX_LANES];
+
 // ── Constructor ────────────────────────────────────────────────────────────
 
 ESP32TimerHAL::ESP32TimerHAL() = default;

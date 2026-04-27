@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Card } from '../components/ui/Card'
@@ -12,13 +12,16 @@ import {
   discoverMdns,
   getConnectionStatus,
   listSerialPorts,
+  resetAllData,
   setTimerLanes,
+  toggleSerialMonitor,
   type ConnectionStatus,
   type MdnsDiscoveryResponse,
 } from '../api/endpoints/connection'
 import { useTheme } from '../context/theme'
 import { cn } from '../lib/cn'
 import { STORAGE_KEYS, clampNumber, readBool, readNumber, readString, writeValue } from '../lib/settings'
+import { useWebSocket } from '../hooks/useWebSocket'
 
 type ConnMode = 'serial' | 'tcp'
 
@@ -54,6 +57,12 @@ export function SettingsPage() {
   const [soundFinishUrl, setSoundFinishUrl] = useState(() => readString(STORAGE_KEYS.soundFinishUrl, ''))
 
   const [mdnsResult, setMdnsResult] = useState<MdnsDiscoveryResponse | null>(null)
+
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [showSerialMonitor, setShowSerialMonitor] = useState(false)
+  const [serialMonitorEnabled, setSerialMonitorEnabled] = useState(false)
+  const [serialLog, setSerialLog] = useState<Array<{ direction: string; data: string; timestamp: string }>>([])
+  const serialLogRef = useRef<HTMLPreElement>(null)
 
   const statusQ = useQuery({ queryKey: ['connection', 'status'], queryFn: getConnectionStatus, refetchInterval: 2000 })
   const portsQ = useQuery({ queryKey: ['connection', 'serial-ports'], queryFn: listSerialPorts })
@@ -119,6 +128,38 @@ export function SettingsPage() {
       toast({ variant: 'error', title: 'Set lanes failed', description: msg })
     },
   })
+
+  const resetAllM = useMutation({
+    mutationFn: () => resetAllData(),
+    onSuccess: () => {
+      qc.invalidateQueries()
+      toast({ variant: 'success', title: 'All data deleted' })
+      setShowResetConfirm(false)
+    },
+    onError: (e) => {
+      const msg = e instanceof ApiError ? e.message : 'Failed to reset data'
+      toast({ variant: 'error', title: 'Reset failed', description: msg })
+    },
+  })
+
+  const serialMonitorM = useMutation({
+    mutationFn: () => toggleSerialMonitor(),
+    onSuccess: (res) => {
+      setSerialMonitorEnabled(res.enabled)
+    },
+  })
+
+  const handleWsMessage = useCallback((msg: unknown) => {
+    const m = msg as { type?: string; payload?: { direction: string; data: string; timestamp: string } }
+    if (m.type === 'serial_data' && m.payload) {
+      setSerialLog((prev) => {
+        const next = [...prev, m.payload!]
+        return next.length > 500 ? next.slice(-500) : next
+      })
+    }
+  }, [])
+
+  useWebSocket({ onJsonMessage: handleWsMessage })
 
   const connected = statusQ.data?.connection_state === 'connected'
 
@@ -486,6 +527,98 @@ export function SettingsPage() {
           </div>
         </Card>
       </div>
+
+      {/* System / Debug */}
+      <Card>
+        <div className="text-sm font-semibold">System</div>
+        <div className="mt-3 flex flex-wrap gap-3">
+          <Button variant="secondary" onClick={() => {
+            if (!serialMonitorEnabled) serialMonitorM.mutate()
+            setShowSerialMonitor(true)
+          }}>
+            Serial Monitor
+          </Button>
+          <Button
+            className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
+            onClick={() => setShowResetConfirm(true)}
+          >
+            Reset All Data
+          </Button>
+        </div>
+      </Card>
+
+      {/* Reset confirmation dialog */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowResetConfirm(false)}>
+          <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">Reset All Data</h2>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              This will permanently delete <strong>all groups, racers, races, heats, and results</strong>. This action cannot be undone.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setShowResetConfirm(false)}>Cancel</Button>
+              <Button
+                className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
+                onClick={() => resetAllM.mutate()}
+                disabled={resetAllM.isPending}
+              >
+                {resetAllM.isPending ? 'Deleting…' : 'Yes, Delete Everything'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Serial Monitor dialog */}
+      {showSerialMonitor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => {
+          setShowSerialMonitor(false)
+          if (serialMonitorEnabled) serialMonitorM.mutate()
+        }}>
+          <div className="mx-4 flex h-[70vh] w-full max-w-3xl flex-col rounded-lg bg-white shadow-xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+              <h2 className="text-lg font-semibold">Serial Monitor</h2>
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold',
+                  serialMonitorEnabled ? 'bg-emerald-500 text-white' : 'bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                )}>
+                  {serialMonitorEnabled ? 'Active' : 'Paused'}
+                </span>
+                <Button variant="secondary" size="sm" onClick={() => serialMonitorM.mutate()}>
+                  {serialMonitorEnabled ? 'Pause' : 'Resume'}
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => setSerialLog([])}>Clear</Button>
+                <Button variant="secondary" size="sm" onClick={() => {
+                  setShowSerialMonitor(false)
+                  if (serialMonitorEnabled) serialMonitorM.mutate()
+                }}>
+                  Close
+                </Button>
+              </div>
+            </div>
+            <pre
+              ref={serialLogRef}
+              className="flex-1 overflow-auto bg-slate-950 p-4 font-mono text-xs text-green-400"
+              style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+            >
+              {serialLog.length === 0 ? (
+                <span className="text-slate-500">Waiting for serial data…</span>
+              ) : (
+                serialLog.map((entry, i) => (
+                  <div key={i}>
+                    <span className="text-slate-500">{new Date(entry.timestamp).toLocaleTimeString()}</span>{' '}
+                    <span className={entry.direction === 'tx' ? 'text-cyan-400' : 'text-green-400'}>
+                      [{entry.direction.toUpperCase()}]
+                    </span>{' '}
+                    {entry.data}
+                  </div>
+                ))
+              )}
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -6,6 +6,7 @@ export type Racer = {
   car_name: string | null
   car_number: string | null
   group_id: number | null
+  disabled: boolean
 }
 
 export type RacerCreate = {
@@ -13,6 +14,7 @@ export type RacerCreate = {
   car_name?: string | null
   car_number?: string | null
   group_id?: number | null
+  disabled?: boolean
 }
 
 export type RacerUpdate = Partial<RacerCreate>

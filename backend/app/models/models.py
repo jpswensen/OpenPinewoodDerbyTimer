@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     ForeignKey,
     Index,
@@ -68,9 +69,16 @@ class Racer(Base):
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
+    disabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
+
     group: Mapped[Group | None] = relationship(back_populates="racers", lazy="selectin")
     heat_lanes: Mapped[list["HeatLane"]] = relationship(back_populates="racer", lazy="selectin")
-    race_results: Mapped[list["RaceResult"]] = relationship(back_populates="racer", lazy="selectin")
+    race_results: Mapped[list["RaceResult"]] = relationship(
+        back_populates="racer",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        lazy="selectin",
+    )
 
 
 class Race(Base):
@@ -137,6 +145,7 @@ class HeatLane(Base):
 
     time_microseconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     place: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dnf: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
 
     heat: Mapped[Heat] = relationship(back_populates="lanes", lazy="selectin")
     racer: Mapped[Racer | None] = relationship(back_populates="heat_lanes", lazy="selectin")
@@ -157,6 +166,7 @@ class RaceResult(Base):
     best_time: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_points: Mapped[int | None] = mapped_column(Integer, nullable=True)
     overall_place: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dnf_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
 
     race: Mapped[Race] = relationship(back_populates="results", lazy="selectin")
     racer: Mapped[Racer] = relationship(back_populates="race_results", lazy="selectin")

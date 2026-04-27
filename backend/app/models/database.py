@@ -32,7 +32,18 @@ _app_sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
 
 def make_engine(db_url: str | None = None) -> AsyncEngine:
-    return create_async_engine(db_url or get_database_url(), echo=False)
+    engine = create_async_engine(db_url or get_database_url(), echo=False)
+
+    # Enable SQLite foreign key enforcement for every connection.
+    from sqlalchemy import event
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _enable_sqlite_fks(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    return engine
 
 
 def make_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
@@ -60,6 +71,31 @@ async def init_db(engine: AsyncEngine | None = None) -> None:
     engine = engine or get_app_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Lightweight migrations for new columns on existing tables.
+    async with engine.begin() as conn:
+        from sqlalchemy import text
+
+        try:
+            await conn.execute(
+                text("ALTER TABLE heat_lanes ADD COLUMN dnf BOOLEAN NOT NULL DEFAULT 0")
+            )
+        except Exception:
+            pass  # Column already exists
+
+        try:
+            await conn.execute(
+                text("ALTER TABLE race_results ADD COLUMN dnf_count INTEGER NOT NULL DEFAULT 0")
+            )
+        except Exception:
+            pass  # Column already exists
+
+        try:
+            await conn.execute(
+                text("ALTER TABLE racers ADD COLUMN disabled BOOLEAN NOT NULL DEFAULT 0")
+            )
+        except Exception:
+            pass  # Column already exists
 
 
 async def get_db_session() -> AsyncIterator[AsyncSession]:

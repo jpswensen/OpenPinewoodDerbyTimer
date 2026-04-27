@@ -156,6 +156,10 @@ PWDTimer/
 ├── .env.example                # Environment variable template
 ├── start.sh                    # Development startup script
 ├── start-prod.sh               # Production startup script
+├── run-desktop.sh              # Desktop app launcher (pywebview)
+├── build.sh                    # Standalone binary build (macOS/Linux)
+├── build.bat                   # Standalone binary build (Windows)
+├── pwdtimer.spec               # PyInstaller spec file
 └── .gitignore
 ```
 
@@ -320,6 +324,69 @@ launchctl unload ~/Library/LaunchAgents/com.pwdtimer.server.plist
 ```
 
 Logs are written to `/opt/pwdtimer/data/pwdtimer.log`.
+
+### Option 5: Desktop App (pywebview)
+
+Run PWDTimer as a native desktop application with a chromeless window — no browser address bar, no tab management. The app uses the OS-native webview (WebKit on macOS, Edge WebView2 on Windows, WebKitGTK on Linux).
+
+**First-time setup:**
+
+```bash
+cd PWDTimer
+python3 -m venv env
+source env/bin/activate        # macOS / Linux
+pip install -r backend/requirements.txt
+cd frontend && npm ci && npm run build && cd ..
+```
+
+**Launch:**
+
+```bash
+./run-desktop.sh               # Native window (pywebview)
+./run-desktop.sh --headless    # Opens in default browser instead
+```
+
+The launcher automatically:
+- Picks a free port (no port conflicts)
+- Starts the FastAPI server in the background
+- Opens a native window (or browser in headless mode)
+- Shuts down the server when the window is closed
+
+> **Tip:** If pywebview is not installed, the launcher gracefully falls back to opening your default browser.
+
+### Option 6: Standalone Binary (PyInstaller)
+
+Package PWDTimer into a **single executable** that includes Python, all dependencies, the backend, and the built frontend. Transfer the binary to any compatible machine — no Python installation required.
+
+**Build:**
+
+```bash
+# macOS / Linux
+cd PWDTimer
+./build.sh
+
+# Windows
+cd PWDTimer
+build.bat
+```
+
+The build script creates a dedicated virtual environment, installs dependencies, builds the frontend, and runs PyInstaller. The output is a single file:
+
+| Platform | Output |
+|----------|--------|
+| macOS | `dist/PWDTimer` |
+| Linux | `dist/PWDTimer` |
+| Windows | `dist\PWDTimer.exe` |
+
+**Run:**
+
+```bash
+./dist/PWDTimer                # Native desktop window
+./dist/PWDTimer --headless     # Opens in default browser
+./dist/PWDTimer --port 8080    # Use a specific port
+```
+
+> **Note:** The standalone binary must be built on the same OS/architecture as the target machine (e.g., build on macOS for macOS, build on Windows for Windows). The database file (`pwdtimer.db`) is created in the working directory at runtime.
 
 ## License
 

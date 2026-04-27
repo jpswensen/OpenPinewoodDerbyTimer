@@ -13,7 +13,7 @@ import { listGroups } from '../api/endpoints/groups'
 import type { Racer } from '../api/endpoints/racers'
 import { listRacers } from '../api/endpoints/racers'
 import type { Heat, Race } from '../api/endpoints/races'
-import { createRace, generateHeats, listHeats, listRaces, reorderHeats, repeatHeat, updateHeat, updateRace } from '../api/endpoints/races'
+import { createRace, deleteHeat, deleteRace, generateHeats, listHeats, listRaces, reorderHeats, repeatHeat, updateHeat, updateRace } from '../api/endpoints/races'
 
 type DragData =
   | { kind: 'heat-row'; heatId: number }
@@ -55,7 +55,8 @@ function parseDragData(dt: DataTransfer): DragData | null {
 function laneCellLabel(racer: Racer | undefined): string {
   if (!racer) return '—'
   const car = racer.car_name ? (racer.car_number ? `${racer.car_name} (#${racer.car_number})` : racer.car_name) : racer.car_number ? `#${racer.car_number}` : ''
-  return car ? `${racer.name} — ${car}` : racer.name
+  const label = car ? `${racer.name} — ${car}` : racer.name
+  return racer.disabled ? `${label} [No-show]` : label
 }
 
 export function HeatsPage() {
@@ -71,6 +72,9 @@ export function HeatsPage() {
 
   const [dragOverHeatId, setDragOverHeatId] = useState<number | null>(null)
   const [dragOverLane, setDragOverLane] = useState<{ heatId: number; laneNumber: number } | null>(null)
+  const [deleteRaceConfirm, setDeleteRaceConfirm] = useState<Race | null>(null)
+  const [deleteHeatConfirm, setDeleteHeatConfirm] = useState<Heat | null>(null)
+  const [regenConfirmOpen, setRegenConfirmOpen] = useState(false)
 
   const racesQ = useQuery({ queryKey: ['races'], queryFn: listRaces })
   const groupsQ = useQuery({ queryKey: ['groups'], queryFn: listGroups })
@@ -116,6 +120,10 @@ export function HeatsPage() {
     const done = hs.filter((h) => h.status === 'completed').length
     return { total, done }
   }, [heatsQ.data])
+
+  const heatsHaveData = useMemo(() => {
+    return heats.some((h) => h.status !== 'pending')
+  }, [heats])
 
   const createRaceM = useMutation({
     mutationFn: (payload: { name: string; num_lanes: number }) => createRace(payload),
@@ -186,6 +194,34 @@ export function HeatsPage() {
     onError: (e) => {
       const msg = e instanceof ApiError ? e.message : 'Failed to update heat'
       toast({ variant: 'error', title: 'Update heat failed', description: msg })
+    },
+  })
+
+  const deleteRaceM = useMutation({
+    mutationFn: (raceId: number) => deleteRace(raceId),
+    onSuccess: async () => {
+      setSelectedRaceId(null)
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['races'] }),
+        qc.invalidateQueries({ queryKey: ['heats'] }),
+      ])
+      toast({ variant: 'success', title: 'Race deleted' })
+    },
+    onError: (e) => {
+      const msg = e instanceof ApiError ? e.message : 'Failed to delete race'
+      toast({ variant: 'error', title: 'Delete race failed', description: msg })
+    },
+  })
+
+  const deleteHeatM = useMutation({
+    mutationFn: (heatId: number) => deleteHeat(heatId),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['heats'] })
+      toast({ variant: 'success', title: 'Heat deleted' })
+    },
+    onError: (e) => {
+      const msg = e instanceof ApiError ? e.message : 'Failed to delete heat'
+      toast({ variant: 'error', title: 'Delete heat failed', description: msg })
     },
   })
 
@@ -343,12 +379,17 @@ export function HeatsPage() {
                 </div>
 
                 <Button
-                  onClick={() =>
-                    activeRaceId != null ? generateHeatsM.mutate({ raceId: activeRaceId, groupId: scheduleGroupId }) : null
-                  }
+                  onClick={() => {
+                    if (activeRaceId == null) return
+                    if (heatsHaveData) {
+                      setRegenConfirmOpen(true)
+                    } else {
+                      generateHeatsM.mutate({ raceId: activeRaceId, groupId: scheduleGroupId })
+                    }
+                  }}
                   disabled={activeRaceId == null || generateHeatsM.isPending}
                 >
-                  {generateHeatsM.isPending ? 'Generating…' : 'Generate heats'}
+                  {generateHeatsM.isPending ? 'Generating…' : heats.length ? 'Regenerate heats' : 'Generate heats'}
                 </Button>
 
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-800 dark:bg-slate-900">
@@ -362,6 +403,15 @@ export function HeatsPage() {
                     Completed heats out of total.
                   </div>
                 </div>
+
+                <Button
+                  variant="danger"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => selectedRace && setDeleteRaceConfirm(selectedRace)}
+                >
+                  Delete race
+                </Button>
               </div>
             ) : (
               <div className="text-sm text-slate-600 dark:text-slate-300">Create a race to begin scheduling heats.</div>
@@ -428,7 +478,7 @@ export function HeatsPage() {
                       </td>
                       <td>{statusPill(h.status)}</td>
                       <td>
-                        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                           {[...h.lanes]
                             .sort((a, b) => a.lane_number - b.lane_number)
                             .map((ln) => {
@@ -482,7 +532,7 @@ export function HeatsPage() {
                                       {ln.time_microseconds != null ? <span>{formatTimeUs(ln.time_microseconds)}</span> : null}
                                     </div>
                                   </div>
-                                  <div className={cn('mt-1', ln.racer_id == null ? 'text-slate-500' : null)}>{laneCellLabel(racer)}</div>
+                                  <div className={cn('mt-1', ln.racer_id == null ? 'text-slate-500' : null, racer?.disabled ? 'text-slate-400 line-through dark:text-slate-600' : null)}>{laneCellLabel(racer)}</div>
                                 </div>
                               )
                             })}
@@ -492,6 +542,7 @@ export function HeatsPage() {
                         <div className="flex flex-col gap-2">
                           <Button
                             variant="secondary"
+                            size="sm"
                             onClick={() => repeatHeatM.mutate(h.id)}
                             disabled={repeatHeatM.isPending}
                           >
@@ -500,11 +551,20 @@ export function HeatsPage() {
                           {h.status !== 'pending' ? (
                             <Button
                               variant="ghost"
+                              size="sm"
                               onClick={() => updateHeatM.mutate({ heatId: h.id, payload: { status: 'pending' } })}
                             >
                               Reset
                             </Button>
                           ) : null}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 dark:text-red-400"
+                            onClick={() => setDeleteHeatConfirm(h)}
+                          >
+                            Delete
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -554,6 +614,81 @@ export function HeatsPage() {
               {createRaceM.isPending ? 'Creating…' : 'Create'}
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={deleteRaceConfirm != null}
+        title="Delete race"
+        onClose={() => setDeleteRaceConfirm(null)}
+      >
+        <p className="text-sm">
+          Are you sure you want to delete <strong>{deleteRaceConfirm?.name}</strong>? All heats and results will be permanently removed.
+        </p>
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <Button variant="ghost" onClick={() => setDeleteRaceConfirm(null)}>Cancel</Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              if (deleteRaceConfirm) {
+                deleteRaceM.mutate(deleteRaceConfirm.id)
+                setDeleteRaceConfirm(null)
+              }
+            }}
+            disabled={deleteRaceM.isPending}
+          >
+            Delete
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={deleteHeatConfirm != null}
+        title="Delete heat"
+        onClose={() => setDeleteHeatConfirm(null)}
+      >
+        <p className="text-sm">
+          Are you sure you want to delete Heat #{deleteHeatConfirm?.heat_number}? This cannot be undone.
+        </p>
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <Button variant="ghost" onClick={() => setDeleteHeatConfirm(null)}>Cancel</Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              if (deleteHeatConfirm) {
+                deleteHeatM.mutate(deleteHeatConfirm.id)
+                setDeleteHeatConfirm(null)
+              }
+            }}
+            disabled={deleteHeatM.isPending}
+          >
+            Delete
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={regenConfirmOpen}
+        title="Regenerate heats"
+        onClose={() => setRegenConfirmOpen(false)}
+      >
+        <p className="text-sm">
+          Some heats already have recorded times or results. Regenerating will <strong>delete all existing heats and results</strong> for this race and create a new schedule.
+        </p>
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <Button variant="ghost" onClick={() => setRegenConfirmOpen(false)}>Cancel</Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              if (activeRaceId != null) {
+                generateHeatsM.mutate({ raceId: activeRaceId, groupId: scheduleGroupId })
+              }
+              setRegenConfirmOpen(false)
+            }}
+            disabled={generateHeatsM.isPending}
+          >
+            Regenerate
+          </Button>
         </div>
       </Modal>
     </div>

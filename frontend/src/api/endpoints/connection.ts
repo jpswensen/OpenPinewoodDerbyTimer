@@ -77,3 +77,15 @@ export function connectTimer(payload: ConnectRequest): Promise<ConnectionStatus>
 export function disconnectTimer(): Promise<ConnectionStatus> {
   return apiFetch('/connection/disconnect', { method: 'POST' })
 }
+
+export function toggleSerialMonitor(): Promise<{ enabled: boolean }> {
+  return apiFetch('/connection/serial-monitor', { method: 'POST' })
+}
+
+export function getSerialMonitorStatus(): Promise<{ enabled: boolean }> {
+  return apiFetch('/connection/serial-monitor')
+}
+
+export function resetAllData(): Promise<{ status: string }> {
+  return apiFetch('/reset-all-data', { method: 'POST' })
+}

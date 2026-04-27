@@ -27,7 +27,7 @@ function InnerProviders({ children }: Props) {
   const { mode } = useTheme()
 
   return (
-    <RadixTheme appearance={mode} accentColor="blue" grayColor="slate" radius="medium">
+    <RadixTheme appearance={mode} accentColor="indigo" grayColor="slate" radius="large">
       <ToastProvider>
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>{children}</BrowserRouter>

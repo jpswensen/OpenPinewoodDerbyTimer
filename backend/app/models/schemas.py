@@ -33,6 +33,7 @@ class RacerBase(BaseModel):
     car_name: Optional[str] = None
     car_number: Optional[str] = None
     group_id: Optional[int] = None
+    disabled: bool = False
 
 
 class RacerCreate(RacerBase):
@@ -44,6 +45,7 @@ class RacerUpdate(BaseModel):
     car_name: Optional[str] = None
     car_number: Optional[str] = None
     group_id: Optional[int] = None
+    disabled: Optional[bool] = None
 
 
 class RacerRead(RacerBase):
@@ -111,6 +113,7 @@ class HeatLaneBase(BaseModel):
     racer_id: Optional[int] = None
     time_microseconds: Optional[int] = None
     place: Optional[int] = None
+    dnf: bool = False
 
 
 class HeatLaneCreate(HeatLaneBase):
@@ -121,6 +124,7 @@ class HeatLaneUpdate(BaseModel):
     racer_id: Optional[int] = None
     time_microseconds: Optional[int] = None
     place: Optional[int] = None
+    dnf: Optional[bool] = None
 
 
 class HeatLaneRead(HeatLaneBase):
@@ -136,6 +140,7 @@ class RaceResultBase(BaseModel):
     best_time: Optional[int] = None
     total_points: Optional[int] = None
     overall_place: Optional[int] = None
+    dnf_count: int = 0
 
 
 class RaceResultCreate(RaceResultBase):

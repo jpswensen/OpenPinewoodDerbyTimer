@@ -48,6 +48,11 @@ frontend/build/
 *.sqlite
 *.sqlite3
 
+# PyInstaller
+build_env/
+*.manifest
+*.spec.bak
+
 # PlatformIO
 firmware/.pio/
 firmware/.pioenvs/

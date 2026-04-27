@@ -1,4 +1,4 @@
-import { type DragEvent, useEffect, useMemo, useState } from 'react'
+import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Papa from 'papaparse'
 
@@ -91,6 +91,7 @@ export function RacersPage() {
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
 
   const [csvModalOpen, setCsvModalOpen] = useState(false)
+  const csvFileRef = useRef<HTMLInputElement>(null)
   const [csvFields, setCsvFields] = useState<string[]>([])
   const [csvRows, setCsvRows] = useState<CsvRow[]>([])
   const [csvMapping, setCsvMapping] = useState<CsvMapping>({
@@ -718,13 +719,14 @@ export function RacersPage() {
                   <th>Name</th>
                   <th>Car</th>
                   <th className="w-28">Car #</th>
+                  <th className="w-24">Status</th>
                   <th className="w-40">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {anyLoading ? (
                   <tr>
-                    <td colSpan={5} className="py-6 text-center text-sm text-slate-600 dark:text-slate-300">
+                    <td colSpan={6} className="py-6 text-center text-sm text-slate-600 dark:text-slate-300">
                       Loading…
                     </td>
                   </tr>
@@ -742,7 +744,7 @@ export function RacersPage() {
                           e.dataTransfer.setData('text/plain', String(r.id))
                           e.dataTransfer.effectAllowed = 'move'
                         }}
-                        className="cursor-move"
+                        className={cn('cursor-move', r.disabled ? 'opacity-50' : null)}
                         title={selectedIds.has(r.id) && selectedIds.size > 1 ? 'Drag selection onto a group to move' : 'Drag onto a group to move'}
                       >
                         <td>
@@ -795,6 +797,23 @@ export function RacersPage() {
                         </td>
 
                         <td className="align-top">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateRacerM.mutate({ id: r.id, payload: { disabled: !r.disabled } })
+                            }
+                            className={cn(
+                              'rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors',
+                              r.disabled
+                                ? 'bg-slate-200 text-slate-500 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-400 dark:hover:bg-slate-600'
+                                : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50',
+                            )}
+                          >
+                            {r.disabled ? 'No-show' : 'Active'}
+                          </button>
+                        </td>
+
+                        <td className="align-top">
                           {isEditing ? (
                             <div className="flex flex-wrap gap-2">
                               <Button variant="secondary" onClick={() => void saveEditRacer(r)}>
@@ -820,7 +839,7 @@ export function RacersPage() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={5} className="py-6 text-center text-sm text-slate-600 dark:text-slate-300">
+                    <td colSpan={6} className="py-6 text-center text-sm text-slate-600 dark:text-slate-300">
                       No racers.
                     </td>
                   </tr>
@@ -956,9 +975,66 @@ export function RacersPage() {
             Upload a CSV and map its columns. The import will create groups referenced in the CSV if they don’t exist.
           </p>
 
+          <div
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              e.currentTarget.setAttribute('data-drag', 'true')
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault()
+              e.currentTarget.removeAttribute('data-drag')
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              e.currentTarget.removeAttribute('data-drag')
+              const f = e.dataTransfer.files?.[0]
+              if (f) parseCsv(f)
+            }}
+            className="group flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-slate-300 px-4 py-6 text-center transition-colors data-[drag]:border-blue-500 data-[drag]:bg-blue-50 dark:border-slate-700 dark:data-[drag]:border-blue-400 dark:data-[drag]:bg-blue-950/30"
+          >
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Drag &amp; drop a CSV file here, or
+            </p>
+            <Button
+              size="sm"
+              onClick={async () => {
+                // Use pywebview native file dialog if available
+                const pywebview = (window as any).pywebview
+                if (pywebview?.api?.pick_file) {
+                  try {
+                    const result = await pywebview.api.pick_file(
+                      'Choose a CSV file',
+                      'CSV files (*.csv)',
+                    )
+                    if (result?.contents) {
+                      const file = new File([result.contents], result.name ?? 'import.csv', {
+                        type: 'text/csv',
+                      })
+                      parseCsv(file)
+                    }
+                  } catch {
+                    // Fallback: click hidden input
+                    csvFileRef.current?.click()
+                  }
+                } else {
+                  csvFileRef.current?.click()
+                }
+              }}
+            >
+              Choose CSV File…
+            </Button>
+            {csvFields.length ? (
+              <span className="text-xs text-emerald-600 dark:text-emerald-400">
+                ✓ {csvRows.length} rows loaded
+              </span>
+            ) : null}
+          </div>
           <input
+            ref={csvFileRef}
             type="file"
-            accept=".csv,text/csv"
+            className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0]
               if (!f) return

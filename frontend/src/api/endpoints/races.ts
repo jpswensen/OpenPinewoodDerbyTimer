@@ -14,6 +14,7 @@ export type HeatLane = {
   racer_id: number | null
   time_microseconds: number | null
   place: number | null
+  dnf: boolean
 }
 
 export type Heat = {
@@ -58,6 +59,7 @@ export type HeatLaneUpdate = {
   lane_number: number
   time_microseconds?: number | null
   racer_id?: number | null
+  dnf?: boolean
 }
 
 export type HeatUpdateRequest = {
@@ -73,6 +75,10 @@ export function repeatHeat(heatId: number): Promise<Heat> {
   return apiFetch(`/heats/${heatId}/repeat`, { method: 'POST' })
 }
 
+export function deleteHeat(heatId: number): Promise<void> {
+  return apiFetch(`/heats/${heatId}`, { method: 'DELETE' })
+}
+
 export function reorderHeats(raceId: number, heatIds: number[]): Promise<Heat[]> {
   return apiFetch(`/races/${raceId}/heats/reorder`, { method: 'PUT', body: { heat_ids: heatIds } })
 }
@@ -85,6 +91,7 @@ export type RaceResult = {
   best_time: number | null
   total_points: number | null
   overall_place: number | null
+  dnf_count: number
 }
 
 export function getRaceResults(raceId: number): Promise<RaceResult[]> {

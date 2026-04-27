@@ -81,6 +81,7 @@ class ConnectionManager:
 
         self._status = ConnectionStatus(connection_state="disconnected", mode=None, target=None)
         self._last_heat_complete_start_time_us: int | None = None
+        self._serial_monitor_enabled = False
 
     async def shutdown(self) -> None:
         await self.disconnect()
@@ -157,6 +158,12 @@ class ConnectionManager:
             writer.write(payload)
         if hasattr(writer, "drain"):
             await writer.drain()
+        if self._serial_monitor_enabled:
+            await self._publish("serial_data", {
+                "direction": "tx",
+                "data": payload.decode("utf-8", errors="replace"),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
 
     async def _stop_runner_locked(self) -> None:
         self._stop_event.set()
@@ -294,6 +301,12 @@ class ConnectionManager:
             chunk = await reader.read(1024)
             if not chunk:
                 return
+            if self._serial_monitor_enabled:
+                await self._publish("serial_data", {
+                    "direction": "rx",
+                    "data": chunk.decode("utf-8", errors="replace"),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
             frames, remaining = extract_framed_messages(self._buffer + chunk)
             self._buffer = remaining
             for frame in frames:

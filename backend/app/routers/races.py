@@ -126,8 +126,9 @@ async def generate_heats(
         raise HTTPException(status_code=404, detail="Race not found")
 
     _validate_num_lanes(race.num_lanes)
+    num_lanes = race.num_lanes  # capture before expire
 
-    stmt = select(Racer.id).order_by(Racer.id)
+    stmt = select(Racer.id).where(Racer.disabled.is_(False)).order_by(Racer.id)
     if group_id is not None:
         stmt = stmt.where(Racer.group_id == group_id)
     res = await session.execute(stmt)
@@ -135,11 +136,16 @@ async def generate_heats(
     if not racer_ids:
         raise HTTPException(status_code=400, detail="No racers available to schedule")
 
-    # Replace existing schedule/results.
+    # Replace existing schedule/results — delete heat_lanes explicitly
+    # because bulk delete() doesn't trigger ORM cascades.
     await session.execute(delete(RaceResult).where(RaceResult.race_id == race_id))
+    heat_ids_q = select(Heat.id).where(Heat.race_id == race_id)
+    await session.execute(delete(HeatLane).where(HeatLane.heat_id.in_(heat_ids_q)))
     await session.execute(delete(Heat).where(Heat.race_id == race_id))
+    await session.flush()
+    session.expire_all()
 
-    schedule = generate_round_robin_heats(racer_ids, race.num_lanes)
+    schedule = generate_round_robin_heats(racer_ids, num_lanes)
 
     heats: list[Heat] = []
     for heat_number, lane_assignments in enumerate(schedule, start=1):
@@ -149,7 +155,7 @@ async def generate_heats(
                 lane_number=lane_idx + 1,
                 racer_id=lane_assignments[lane_idx],
             )
-            for lane_idx in range(race.num_lanes)
+            for lane_idx in range(num_lanes)
         ]
         session.add(heat)
         heats.append(heat)
@@ -243,6 +249,7 @@ class HeatLaneUpdate(BaseModel):
     lane_number: int
     time_microseconds: int | None = None
     racer_id: int | None = None
+    dnf: bool | None = None
 
 
 class HeatUpdateRequest(BaseModel):
@@ -303,6 +310,12 @@ async def update_heat(
             if _field_was_set(upd, "time_microseconds"):
                 hl.time_microseconds = upd.time_microseconds
 
+            if _field_was_set(upd, "dnf"):
+                hl.dnf = bool(upd.dnf)
+                if hl.dnf:
+                    # DNF lanes lose their place (and optionally clear time)
+                    hl.place = None
+
         assigned = [hl.racer_id for hl in heat.lanes if hl.racer_id is not None]
         if len(assigned) != len(set(assigned)):
             raise HTTPException(status_code=400, detail="Duplicate racer_id within a heat is not allowed")
@@ -311,7 +324,7 @@ async def update_heat(
         finished = [
             hl
             for hl in heat.lanes
-            if hl.racer_id is not None and hl.time_microseconds is not None
+            if hl.racer_id is not None and hl.time_microseconds is not None and not hl.dnf
         ]
         finished.sort(key=lambda x: (x.time_microseconds or 0, x.lane_number))
 
@@ -352,6 +365,42 @@ async def update_heat(
         )
 
     return heat_out
+
+
+@router.delete("/heats/{heat_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_heat(heat_id: int, session: AsyncSession = Depends(get_db_session)) -> None:
+    res = await session.execute(
+        select(Heat).where(Heat.id == heat_id).options(selectinload(Heat.lanes))
+    )
+    heat = res.scalar_one_or_none()
+    if heat is None:
+        raise HTTPException(status_code=404, detail="Heat not found")
+
+    race_id = heat.race_id
+
+    await session.delete(heat)
+    await session.commit()
+
+    # Renumber remaining heats so heat_number stays sequential.
+    res = await session.execute(
+        select(Heat).where(Heat.race_id == race_id).order_by(Heat.heat_number)
+    )
+    remaining = list(res.scalars().all())
+
+    # Use a two-phase renumber to avoid UNIQUE constraint collisions.
+    if remaining:
+        max_num = max(h.heat_number for h in remaining)
+        temp_base = max_num + 1000
+        for idx, h in enumerate(remaining, start=1):
+            h.heat_number = temp_base + idx
+        await session.flush()
+        for idx, h in enumerate(remaining, start=1):
+            h.heat_number = idx
+        await session.commit()
+
+    # Recalculate race results since a heat was removed.
+    await recalculate_race_results(session, race_id)
+    await session.commit()
 
 
 @router.post("/heats/{heat_id}/repeat", response_model=HeatWithLanesRead, status_code=status.HTTP_201_CREATED)

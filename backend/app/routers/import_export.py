@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.database import get_db_session
@@ -108,3 +108,17 @@ async def export_csv(session: AsyncSession = Depends(get_db_session)) -> Respons
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": "attachment; filename=racers.csv"},
     )
+
+
+@router.post("/reset-all-data")
+async def reset_all_data(session: AsyncSession = Depends(get_db_session)) -> dict[str, str]:
+    """Delete all data from every table, preserving the schema."""
+    # Delete in FK-safe order
+    await session.execute(text("DELETE FROM race_results"))
+    await session.execute(text("DELETE FROM heat_lanes"))
+    await session.execute(text("DELETE FROM heats"))
+    await session.execute(text("DELETE FROM races"))
+    await session.execute(text("DELETE FROM racers"))
+    await session.execute(text("DELETE FROM groups"))
+    await session.commit()
+    return {"status": "ok"}

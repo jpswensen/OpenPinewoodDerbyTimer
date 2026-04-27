@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -7,8 +7,8 @@ import { useToast } from '../components/ui/Toast'
 
 import { ApiError } from '../api/client'
 import { armTimer, resetTimer, setTimerLanes } from '../api/endpoints/connection'
-import type { Heat, Race } from '../api/endpoints/races'
-import { listHeats, listRaces } from '../api/endpoints/races'
+import type { Heat, HeatUpdateRequest, Race } from '../api/endpoints/races'
+import { listHeats, listRaces, updateHeat } from '../api/endpoints/races'
 import type { Racer } from '../api/endpoints/racers'
 import { listRacers } from '../api/endpoints/racers'
 import { cn } from '../lib/cn'
@@ -134,34 +134,82 @@ function laneLabel(racer: Racer | undefined): string {
   return car ? `${racer.name} — ${car}` : racer.name
 }
 
-function LaneCard({ laneNumber, racer, timeUs, place }: { laneNumber: number; racer?: Racer; timeUs: number | null; place: number | null }) {
+function LaneCard({
+  laneNumber,
+  racer,
+  timeUs,
+  place,
+  dnf,
+  onDnf,
+  disabled,
+}: {
+  laneNumber: number
+  racer?: Racer
+  timeUs: number | null
+  place: number | null
+  dnf?: boolean
+  onDnf?: () => void
+  disabled?: boolean
+}) {
   return (
-    <Card className="p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Lane {laneNumber}</div>
-          <div className="mt-1 text-lg font-semibold leading-tight">{laneLabel(racer)}</div>
+    <Card className={cn(
+      'relative p-5',
+      disabled ? 'border-slate-200 bg-slate-100 opacity-50 dark:border-slate-800 dark:bg-slate-900' : null,
+      dnf && !disabled ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20' : null,
+    )}>
+      {/* No-show badge */}
+      {disabled && racer ? (
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-slate-500/80 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white">
+          No-show
         </div>
-        {place != null ? (
+      ) : null}
+
+      {/* Muted DNF toggle — top-right corner */}
+      {onDnf && racer && !disabled ? (
+        <button
+          type="button"
+          onClick={onDnf}
+          className={cn(
+            'absolute right-2 top-2 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors',
+            dnf
+              ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/40 dark:text-rose-300 dark:hover:bg-rose-800/60'
+              : 'text-rose-900/30 hover:bg-rose-50 hover:text-rose-800/70 dark:text-rose-400/25 dark:hover:bg-rose-950/40 dark:hover:text-rose-400/60',
+          )}
+        >
+          {dnf ? 'Undo DNF' : 'DNF'}
+        </button>
+      ) : null}
+
+      <div className={cn('min-w-0', onDnf && racer ? 'pr-14' : null)}>
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Lane {laneNumber}</div>
+        <div className="mt-1 truncate text-lg font-semibold leading-tight">{laneLabel(racer)}</div>
+      </div>
+
+      <div className="mt-4 flex items-end justify-between gap-3">
+        <div className={cn('text-4xl font-bold tabular-nums', dnf ? 'text-red-400/70 line-through' : null)}>
+          {dnf ? 'DNF' : formatTimeUs(timeUs)}
+        </div>
+        {!dnf && place != null ? (
           <div className="rounded-full bg-slate-900 px-3 py-1 text-sm font-semibold text-white dark:bg-slate-50 dark:text-slate-900">
             {placeLabel(place)}
           </div>
         ) : null}
       </div>
-
-      <div className="mt-4 text-4xl font-bold tabular-nums">{formatTimeUs(timeUs)}</div>
     </Card>
   )
 }
 
 export function RacePage() {
   const { toast } = useToast()
+  const qc = useQueryClient()
 
   const [timerConn, setTimerConn] = useState<TimerConnectionStatus | null>(null)
   const [raceState, setRaceState] = useState<TimerRaceState | null>(null)
   const [laneTimes, setLaneTimes] = useState<TimerLaneTimes | null>(null)
 
   const [selectedRaceId, setSelectedRaceId] = useState<number | null>(null)
+  const [manualHeatId, setManualHeatId] = useState<number | null>(null)
+  const [navTarget, setNavTarget] = useState<Heat | null>(null)
   const [soundEnabled, setSoundEnabled] = useState(() => readBool(STORAGE_KEYS.soundEnabled, false))
   const soundEnabledRef = useRef(soundEnabled)
 
@@ -198,7 +246,28 @@ export function RacePage() {
   const currentHeat = useMemo<Heat | null>(() => {
     const heats = heatsQ.data ?? []
     if (heats.length === 0) return null
+    if (manualHeatId != null) return heats.find((h) => h.id === manualHeatId) ?? null
     return heats.find((h) => h.status === 'in_progress') ?? heats.find((h) => h.status === 'pending') ?? heats[heats.length - 1]
+  }, [heatsQ.data, manualHeatId])
+
+  const prevHeat = useMemo<Heat | null>(() => {
+    const heats = heatsQ.data ?? []
+    if (!currentHeat) return null
+    const idx = heats.findIndex((h) => h.id === currentHeat.id)
+    if (idx <= 0) return null
+    return heats[idx - 1]
+  }, [heatsQ.data, currentHeat])
+
+  const nextHeat = useMemo<Heat | null>(() => {
+    const heats = heatsQ.data ?? []
+    if (!currentHeat) return null
+    const idx = heats.findIndex((h) => h.id === currentHeat.id)
+    if (idx < 0 || idx >= heats.length - 1) return null
+    return heats[idx + 1]
+  }, [heatsQ.data, currentHeat])
+
+  const firstUncompletedHeat = useMemo<Heat | null>(() => {
+    return (heatsQ.data ?? []).find((h) => h.status !== 'completed') ?? null
   }, [heatsQ.data])
 
   const numLanes = useMemo(() => {
@@ -283,6 +352,100 @@ export function RacePage() {
     }
   }
 
+  const acceptAndAdvanceM = useMutation({
+    mutationFn: async () => {
+      if (!currentHeat) throw new Error('No current heat')
+      // If the heat still has lane time data from the timer, save it first
+      if (laneTimes && currentHeat.status !== 'completed') {
+        const laneUpdates = Array.from({ length: numLanes }, (_, i) => ({
+          lane_number: i + 1,
+          time_microseconds: laneTimes.lane_end_times_us?.[i] ?? null,
+        })).filter((l) => l.time_microseconds != null) as Array<{ lane_number: number; time_microseconds: number | null }>
+        await updateHeat(currentHeat.id, { status: 'completed', lanes: laneUpdates.length ? laneUpdates : undefined })
+      } else if (currentHeat.status !== 'completed') {
+        await updateHeat(currentHeat.id, { status: 'completed' })
+      }
+      // Reset timer for next heat
+      try { await resetTimer() } catch { /* ignore if timer not connected */ }
+    },
+    onSuccess: async () => {
+      setManualHeatId(null)
+      setRaceState(null)
+      setLaneTimes(null)
+      await qc.invalidateQueries({ queryKey: ['heats'] })
+      toast({ variant: 'success', title: 'Heat accepted — advancing to next heat' })
+    },
+    onError: (e) => {
+      const msg = e instanceof ApiError ? e.message : 'Failed to accept heat'
+      toast({ variant: 'error', title: 'Accept failed', description: msg })
+    },
+  })
+
+  function hasUnsavedResults(): boolean {
+    // Live timer times recorded but not yet accepted
+    const times = laneTimes?.lane_end_times_us ?? []
+    if (times.some((t) => t != null) && currentHeat?.status !== 'completed') return true
+    // DNF flags set on an incomplete heat (need Accept to persist results)
+    if (currentHeat && currentHeat.status !== 'completed' && currentHeat.lanes.some((l) => l.dnf)) return true
+    return false
+  }
+
+  function doNavigate(target: Heat) {
+    setManualHeatId(target.id)
+    setLaneTimes(null)
+    setRaceState(null)
+    setNavTarget(null)
+  }
+
+  function navigateTo(target: Heat) {
+    if (hasUnsavedResults()) {
+      setNavTarget(target)
+    } else {
+      doNavigate(target)
+    }
+  }
+
+  const toggleDnfM = useMutation({
+    mutationFn: async ({ laneNumber, dnf }: { laneNumber: number; dnf: boolean }) => {
+      if (!currentHeat) throw new Error('No current heat')
+      // If the heat was already accepted, bumping DNF flags must re-open it so
+      // Accept can re-run results and firstUncompletedHeat can find it.
+      const payload: HeatUpdateRequest = { lanes: [{ lane_number: laneNumber, dnf }] }
+      if (currentHeat.status === 'completed') payload.status = 'pending'
+      await updateHeat(currentHeat.id, payload)
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['heats'] })
+    },
+    onError: (e) => {
+      const msg = e instanceof ApiError ? e.message : 'Failed to update DNF'
+      toast({ variant: 'error', title: 'DNF failed', description: msg })
+    },
+  })
+
+  const resetHeatM = useMutation({
+    mutationFn: async () => {
+      if (!currentHeat) throw new Error('No current heat')
+      const laneResets = currentHeat.lanes.map((l) => ({
+        lane_number: l.lane_number,
+        time_microseconds: null as number | null,
+        dnf: false,
+      }))
+      await updateHeat(currentHeat.id, { status: 'pending', lanes: laneResets })
+      try { await resetTimer() } catch { /* ignore */ }
+    },
+    onSuccess: async () => {
+      setLaneTimes(null)
+      setRaceState(null)
+      await qc.invalidateQueries({ queryKey: ['heats'] })
+      toast({ variant: 'success', title: `Heat #${currentHeat?.heat_number} reset to pending` })
+    },
+    onError: (e) => {
+      const msg = e instanceof ApiError ? e.message : 'Failed to reset heat'
+      toast({ variant: 'error', title: 'Reset failed', description: msg })
+    },
+  })
+
   async function doSetLanes(n: number) {
     try {
       await setTimerLanes(n)
@@ -319,13 +482,20 @@ export function RacePage() {
   return (
     <div ref={containerRef} className={cn('space-y-4', isFullscreen ? 'min-h-screen bg-slate-50 p-6 dark:bg-slate-950' : null)}>
       <Card className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-3">
           <h1 className="text-xl font-semibold">Race</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <span className="truncate">{selectedRace ? selectedRace.name : 'No race selected'}</span>
-            <span className="opacity-60">•</span>
-            <span>{heatLabel}</span>
-          </div>
+          <select
+            className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm dark:border-slate-800 dark:bg-slate-950"
+            value={activeRaceId ?? ''}
+            onChange={(e) => setSelectedRaceId(e.target.value ? Number(e.target.value) : null)}
+          >
+            {(racesQ.data ?? []).map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+          <span className="text-sm text-slate-600 dark:text-slate-300">{heatLabel}</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -396,39 +566,148 @@ export function RacePage() {
             ))}
           </div>
 
-          <div className="mt-4">
-            <div className="text-sm font-semibold">Race selection</div>
-            <select
-              className="mt-2 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm dark:border-slate-800 dark:bg-slate-950"
-              value={activeRaceId ?? ''}
-              onChange={(e) => setSelectedRaceId(e.target.value ? Number(e.target.value) : null)}
+          <div className="mt-4 space-y-2">
+            <Button
+              className="w-full"
+              variant="primary"
+              onClick={() => acceptAndAdvanceM.mutate()}
+              disabled={!currentHeat || acceptAndAdvanceM.isPending}
             >
-              {(racesQ.data ?? []).map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+              {acceptAndAdvanceM.isPending ? 'Saving…' : 'Accept Results & Next Heat'}
+            </Button>
+            <div className="grid grid-cols-3 gap-1.5">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full"
+                onClick={() => prevHeat && navigateTo(prevHeat)}
+                disabled={!prevHeat}
+                title="Previous heat"
+              >
+                ← Prev
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full"
+                onClick={() => firstUncompletedHeat && navigateTo(firstUncompletedHeat)}
+                disabled={!firstUncompletedHeat}
+                title="First uncompleted heat"
+              >
+                First ↑
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="w-full"
+                onClick={() => nextHeat && navigateTo(nextHeat)}
+                disabled={!nextHeat}
+                title="Next heat"
+              >
+                Next →
+              </Button>
+            </div>
           </div>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: numLanes }, (_, i) => i + 1).map((laneNumber) => {
-          const heatLane = currentHeat?.lanes.find((l) => l.lane_number === laneNumber)
-          const racer = heatLane?.racer_id != null ? racersById.get(heatLane.racer_id) : undefined
+      {/* Current Heat — Lane Cards */}
+      {currentHeat ? (
+        <div className="rounded-xl border-2 border-blue-500 bg-blue-50/50 p-4 dark:border-blue-400 dark:bg-blue-950/20">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center rounded-full bg-blue-600 px-3 py-1 text-xs font-bold text-white">
+                Current Heat
+              </span>
+              <span className="text-sm font-semibold">Heat #{currentHeat.heat_number}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => resetHeatM.mutate()}
+              disabled={resetHeatM.isPending}
+              title="Reset heat back to pending (clears times, places, and DNF flags)"
+              className="rounded px-2 py-0.5 text-xs text-slate-400/50 transition-colors hover:bg-slate-200/70 hover:text-slate-600 disabled:opacity-40 dark:text-slate-500/50 dark:hover:bg-slate-700/60 dark:hover:text-slate-400"
+            >
+              Reset heat
+            </button>
+          </div>
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: numLanes }, (_, i) => i + 1).map((laneNumber) => {
+              const heatLane = currentHeat.lanes.find((l) => l.lane_number === laneNumber)
+              const racer = heatLane?.racer_id != null ? racersById.get(heatLane.racer_id) : undefined
 
-          const timeUs = laneTimes?.lane_end_times_us?.[laneNumber - 1] ?? null
-          const place = laneTimes?.lane_places ? laneTimes.lane_places[String(laneNumber)] ?? null : null
+              const timeUs = laneTimes?.lane_end_times_us?.[laneNumber - 1] ?? null
+              const place = laneTimes?.lane_places ? laneTimes.lane_places[String(laneNumber)] ?? null : null
+              const isDnf = heatLane?.dnf ?? false
+              const isDisabled = racer?.disabled ?? false
 
-          return <LaneCard key={laneNumber} laneNumber={laneNumber} racer={racer} timeUs={timeUs} place={place} />
-        })}
-      </div>
+              return (
+                <LaneCard
+                  key={laneNumber}
+                  laneNumber={laneNumber}
+                  racer={racer}
+                  timeUs={isDisabled ? null : timeUs}
+                  place={isDnf || isDisabled ? null : place}
+                  dnf={isDnf}
+                  disabled={isDisabled}
+                  onDnf={() => toggleDnfM.mutate({ laneNumber, dnf: !isDnf })}
+                />
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      {/* On Deck — Next Heat */}
+      {nextHeat ? (
+        <div className="rounded-lg border border-amber-300 bg-amber-50/50 px-4 py-3 dark:border-amber-700 dark:bg-amber-950/20">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+              On Deck
+            </span>
+            <span className="text-xs font-semibold">Heat #{nextHeat.heat_number}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            {[...nextHeat.lanes]
+              .sort((a, b) => a.lane_number - b.lane_number)
+              .map((ln) => {
+                const racer = ln.racer_id != null ? racersById.get(ln.racer_id) : undefined
+                return (
+                  <div
+                    key={ln.id}
+                    className="rounded-md border border-amber-200 bg-white px-3 py-2 dark:border-amber-800 dark:bg-slate-900"
+                  >
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      Lane {ln.lane_number}
+                    </div>
+                    <div className="text-xs font-medium">{laneLabel(racer)}</div>
+                  </div>
+                )
+              })}
+          </div>
+        </div>
+      ) : null}
 
       {racesQ.isError || heatsQ.isError || racersQ.isError ? (
         <Card className="border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
           Failed to load race data.
         </Card>
+      ) : null}
+
+      {/* Navigate-away warning dialog */}
+      {navTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:bg-slate-900">
+            <div className="text-base font-semibold">Unsaved Results</div>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              The current heat has recorded times that haven't been accepted yet. If you navigate away, those times will be discarded.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setNavTarget(null)}>Stay</Button>
+              <Button variant="danger" onClick={() => doNavigate(navTarget)}>Discard & Navigate</Button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   )

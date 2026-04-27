@@ -30,6 +30,7 @@ type Run = {
   lane_number: number
   time_microseconds: number | null
   place: number | null
+  dnf: boolean
 }
 
 type ResultRow = {
@@ -40,6 +41,7 @@ type ResultRow = {
   best_us: number | null
   place: number | null
   runs: Run[]
+  dnf_count: number
 }
 
 function formatTimeUs(timeUs: number | null): string {
@@ -153,6 +155,7 @@ export function ResultsPage() {
           lane_number: ln.lane_number,
           time_microseconds: ln.time_microseconds ?? null,
           place: ln.place ?? null,
+          dnf: ln.dnf ?? false,
         }
         const arr = runsByRacer.get(ln.racer_id) ?? []
         arr.push(run)
@@ -197,6 +200,7 @@ export function ResultsPage() {
         best_us,
         place: null,
         runs,
+        dnf_count: runs.filter((r) => r.dnf).length,
       })
     }
 
