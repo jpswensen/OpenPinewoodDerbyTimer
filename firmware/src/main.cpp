@@ -103,7 +103,8 @@ void loop() {
                             ? RACE_STATUS_INTERVAL_MS
                             : IDLE_STATUS_INTERVAL_MS;
     if (lastStatusMs == 0 || (nowMs - lastStatusMs) >= interval) {
-        send_status(state, startTime, currentTime, numLanes, endTimes);
+        send_status(state, startTime, currentTime, numLanes, endTimes,
+                    is_starting_gate_set());
         lastStatusMs = nowMs;
     }
 

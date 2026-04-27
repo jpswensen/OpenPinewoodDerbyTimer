@@ -43,6 +43,7 @@ class ConnectionStatus:
                 "current_time_us": self.last_status.current_time_us,
                 "num_lanes": self.last_status.num_lanes,
                 "lane_end_times_us": self.last_status.lane_end_times_us,
+                "gate_set": self.last_status.gate_set,
             }
             if self.last_status
             else None,
@@ -226,6 +227,7 @@ class ConnectionManager:
             "start_time_us": status.start_time_us,
             "current_time_us": status.current_time_us,
             "num_lanes": status.num_lanes,
+            "gate_set": status.gate_set,
         }
 
     def _lane_times_payload(self, status: TimerStatus) -> dict:

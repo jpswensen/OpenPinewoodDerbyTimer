@@ -18,6 +18,7 @@ def _timer_status_payload(status) -> dict:
         "start_time_us": status.start_time_us,
         "current_time_us": status.current_time_us,
         "num_lanes": status.num_lanes,
+        "gate_set": status.gate_set,
     }
 
 

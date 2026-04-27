@@ -18,6 +18,7 @@ class TimerStatus:
     current_time_us: int | None
     num_lanes: int | None
     lane_end_times_us: list[int | None]
+    gate_set: bool | None = None  # True=gate armed/up, False=gate open/released, None=old firmware
 
     @property
     def state_name(self) -> str:
@@ -95,6 +96,17 @@ def parse_status_message(frame: str) -> TimerStatus:
     num_lanes = _to_int(parts[3]) if len(parts) > 3 else None
 
     lane_times_raw = parts[4:] if len(parts) > 4 else []
+
+    # The 13th field (index 12 = 4 header + 8 lane fields) is the optional
+    # gateSet flag added in firmware rev 2. Old firmware omits it → None.
+    gate_set: bool | None = None
+    if len(lane_times_raw) > 8:
+        raw_gate = lane_times_raw[8]
+        v = _to_int(raw_gate)
+        if v is not None:
+            gate_set = bool(v)
+        lane_times_raw = lane_times_raw[:8]  # strip gate field from lane list
+
     lane_times: list[int | None] = [_to_int(v) for v in lane_times_raw]
 
     if num_lanes is not None and num_lanes < 0:
@@ -118,6 +130,7 @@ def parse_status_message(frame: str) -> TimerStatus:
         current_time_us=int(current_time_us) if current_time_us is not None else None,
         num_lanes=int(num_lanes) if num_lanes is not None else None,
         lane_end_times_us=lane_times,
+        gate_set=gate_set,
     )
 
 

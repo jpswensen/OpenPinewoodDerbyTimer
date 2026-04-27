@@ -29,6 +29,7 @@ type TimerRaceState = {
   start_time_us: number | null
   current_time_us: number | null
   num_lanes: number | null
+  gate_set: boolean | null  // true=gate armed/up, false=gate open/released, null=old firmware
 }
 
 type TimerLaneTimes = {
@@ -344,6 +345,14 @@ export function RacePage() {
           : 'There are unsaved finish times. Resetting will erase them. Accept the results first, or continue to discard?'
       if (!window.confirm(msg)) return
     }
+    // Warn if the start gate is physically open — the timer will park in RESET
+    // state and won't arm until the gate is raised.
+    if (raceState?.gate_set === false) {
+      const ok = window.confirm(
+        'The start gate is currently open. The timer will reset but stay unArmed until you close the start gate. Continue?',
+      )
+      if (!ok) return
+    }
     try {
       await resetTimer()
       toast({ variant: 'success', title: 'Timer reset' })
@@ -519,6 +528,20 @@ export function RacePage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <div className={cn('rounded-full px-3 py-1 text-sm font-semibold', stateMeta.className)}>{stateMeta.label}</div>
+              {/* Gate indicator — only shown when firmware reports gate_set */}
+              {raceState?.gate_set != null && (
+                <div
+                  className={cn(
+                    'rounded-full px-3 py-1 text-xs font-semibold',
+                    raceState.gate_set
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+                  )}
+                  title={raceState.gate_set ? 'Start gate is closed/armed' : 'Start gate is open/released'}
+                >
+                  Gate: {raceState.gate_set ? 'Set' : 'Open'}
+                </div>
+              )}
               <div className="text-sm text-slate-600 dark:text-slate-300">{timerStateText}</div>
             </div>
 

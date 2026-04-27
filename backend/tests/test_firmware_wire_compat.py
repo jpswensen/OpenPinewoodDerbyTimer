@@ -63,7 +63,29 @@ def test_extract_handles_back_to_back_frames() -> None:
     ]
 
 
-def test_command_formats_match_firmware_parser() -> None:
+def test_gate_set_field_present_armed() -> None:
+    # New firmware appends gateSet=1 (gate armed/closed) as field 13.
+    frame = "$1,-1,12345678,4,0,0,0,0,0,0,0,0,1*"
+    s = parse_status_message(frame)
+    assert s.state == TimerState.RESET
+    assert s.lane_end_times_us == [0, 0, 0, 0]  # still truncated to num_lanes
+    assert s.gate_set is True
+
+
+def test_gate_set_field_present_open() -> None:
+    # gateSet=0 means gate is open/released.
+    frame = "$3,1000000,1500000,4,100200,0,0,0,0,0,0,0,0*"
+    s = parse_status_message(frame)
+    assert s.state == TimerState.IN_RACE
+    assert s.gate_set is False
+
+
+def test_gate_set_field_absent_old_firmware() -> None:
+    # Old firmware frames (12 fields) must parse without error; gate_set is None.
+    frame = "$2,-1,9000000,4,0,0,0,0,0,0,0,0*"
+    s = parse_status_message(frame)
+    assert s.state == TimerState.SET
+    assert s.gate_set is None
     # The firmware accepts: RESET, ARM, LANES,n*  and SET_LANES:n
     assert format_command_reset() == b"RESET\n"
     # SET_LANES:n is what the new backend emits; firmware accepts it.

@@ -115,15 +115,17 @@ void setup_comms() {
 }
 
 void send_status(TimerState_t st, long startTime, long currentTime,
-                 int numLanes, const long *endTimes) {
-    // Always emit 8 lane fields (zero-padded for inactive lanes) for
-    // legacy wire compatibility.
+                 int numLanes, const long *endTimes, bool gateSet) {
+    // Always emit 8 lane fields (zero-padded for inactive lanes) followed by
+    // a gateSet flag (1=armed/set, 0=open/released) for host UI use.
+    // Old parsers that only read the first 12 comma-separated fields are unaffected.
     char buf[256];
     snprintf(buf, sizeof(buf),
-             "$%d,%ld,%ld,%d,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld*",
+             "$%d,%ld,%ld,%d,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d*",
              (int)st, startTime, currentTime, numLanes,
              endTimes[0], endTimes[1], endTimes[2], endTimes[3],
-             endTimes[4], endTimes[5], endTimes[6], endTimes[7]);
+             endTimes[4], endTimes[5], endTimes[6], endTimes[7],
+             gateSet ? 1 : 0);
     Serial.println(buf);
 }
 
