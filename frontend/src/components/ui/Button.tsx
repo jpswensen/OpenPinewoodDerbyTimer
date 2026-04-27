@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react'
+import { forwardRef, type ButtonHTMLAttributes } from 'react'
 import { cn } from '../../lib/cn'
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -22,9 +22,13 @@ const sizeStyles: Record<NonNullable<Props['size']>, string> = {
   md: 'px-3 py-1.5 text-sm',
 }
 
-export function Button({ className, variant = 'primary', size = 'md', ...props }: Props) {
+export const Button = forwardRef<HTMLButtonElement, Props>(function Button(
+  { className, variant = 'primary', size = 'md', ...props },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       type="button"
       className={cn(
         'inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors disabled:opacity-50',
@@ -35,4 +39,4 @@ export function Button({ className, variant = 'primary', size = 'md', ...props }
       {...props}
     />
   )
-}
+})

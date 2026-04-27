@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
+import { useConfirm } from '../components/ui/ConfirmDialog'
 import { useToast } from '../components/ui/Toast'
 
 import { ApiError } from '../api/client'
@@ -207,6 +208,7 @@ function LaneCard({
 export function RacePage() {
   const { toast } = useToast()
   const qc = useQueryClient()
+  const { confirm, dialog: confirmDialog } = useConfirm()
 
   const [timerConn, setTimerConn] = useState<TimerConnectionStatus | null>(null)
   const [raceState, setRaceState] = useState<TimerRaceState | null>(null)
@@ -343,18 +345,27 @@ export function RacePage() {
     const times = laneTimes?.lane_end_times_us ?? []
     const hasUnsaved = times.some((t) => t != null && t > 0)
     if (sn === 'IN_RACE' || (sn === 'FINISHED' && hasUnsaved)) {
-      const msg =
-        sn === 'IN_RACE'
-          ? 'A race is currently in progress. Resetting will erase all lane times immediately. Continue?'
-          : 'There are unsaved finish times. Resetting will erase them. Accept the results first, or continue to discard?'
-      if (!window.confirm(msg)) return
+      const ok = await confirm({
+        title: sn === 'IN_RACE' ? 'Reset mid-race?' : 'Discard unsaved times?',
+        message:
+          sn === 'IN_RACE'
+            ? 'A race is currently in progress. Resetting will erase all lane times immediately.'
+            : "There are unsaved finish times. Resetting will erase them. Accept the results first, or continue to discard?",
+        confirmLabel: sn === 'IN_RACE' ? 'Reset Anyway' : 'Discard & Reset',
+        variant: 'danger',
+      })
+      if (!ok) return
     }
     // Warn if the start gate is physically open — the timer will park in RESET
     // state and won't arm until the gate is raised.
     if (raceState?.gate_set === false) {
-      const ok = window.confirm(
-        'The start gate is currently open. The timer will reset but stay unArmed until you close the start gate. Continue?',
-      )
+      const ok = await confirm({
+        title: 'Start gate is open',
+        message:
+          'The start gate is currently open. The timer will reset but stay un-armed until you close the start gate.',
+        confirmLabel: 'Reset Anyway',
+        variant: 'primary',
+      })
       if (!ok) return
     }
     try {
@@ -629,7 +640,7 @@ export function RacePage() {
             <Button
               className="w-full"
               variant="primary"
-              onClick={() => {
+              onClick={async () => {
                 // Guard: confirm if accepting a heat that has neither any
                 // real lane finishes nor any DNFs marked. Prevents silently
                 // completing heats when the timer was offline.
@@ -638,9 +649,13 @@ export function RacePage() {
                 const anyDnf = !!currentHeat?.lanes.some((l) => l.dnf)
                 const completing = currentHeat && currentHeat.status !== 'completed'
                 if (completing && !anyFinish && !anyDnf) {
-                  const ok = window.confirm(
-                    'No lane times or DNFs are recorded for this heat. Accept anyway and mark it completed with no results?',
-                  )
+                  const ok = await confirm({
+                    title: 'No results recorded',
+                    message:
+                      'No lane times or DNFs are recorded for this heat. Accept anyway and mark it completed with no results?',
+                    confirmLabel: 'Accept Empty',
+                    variant: 'primary',
+                  })
                   if (!ok) return
                 }
                 acceptAndAdvanceM.mutate()
@@ -697,15 +712,20 @@ export function RacePage() {
             </div>
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 if (!currentHeat) return
                 const hasSavedTimes = currentHeat.lanes.some((l) => l.time_microseconds != null && l.time_microseconds > 0)
                 const hasDnf = currentHeat.lanes.some((l) => l.dnf)
                 const hasAnything = hasSavedTimes || hasDnf || currentHeat.status !== 'pending'
-                const msg = hasAnything
-                  ? `Reset Heat #${currentHeat.heat_number}? This will clear all recorded times, places, and DNF flags for this heat and set it back to pending.`
-                  : `Reset Heat #${currentHeat.heat_number}? It currently has no saved results, but the timer will also be reset.`
-                if (!window.confirm(msg)) return
+                const ok = await confirm({
+                  title: `Reset Heat #${currentHeat.heat_number}?`,
+                  message: hasAnything
+                    ? 'This will clear all recorded times, places, and DNF flags for this heat and set it back to pending.'
+                    : 'This heat has no saved results, but the timer will also be reset.',
+                  confirmLabel: 'Reset Heat',
+                  variant: hasAnything ? 'danger' : 'primary',
+                })
+                if (!ok) return
                 resetHeatM.mutate()
               }}
               disabled={resetHeatM.isPending}
@@ -799,6 +819,8 @@ export function RacePage() {
           </div>
         </div>
       ) : null}
+
+      {confirmDialog}
     </div>
   )
 }
