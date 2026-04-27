@@ -697,7 +697,17 @@ export function RacePage() {
             </div>
             <button
               type="button"
-              onClick={() => resetHeatM.mutate()}
+              onClick={() => {
+                if (!currentHeat) return
+                const hasSavedTimes = currentHeat.lanes.some((l) => l.time_microseconds != null && l.time_microseconds > 0)
+                const hasDnf = currentHeat.lanes.some((l) => l.dnf)
+                const hasAnything = hasSavedTimes || hasDnf || currentHeat.status !== 'pending'
+                const msg = hasAnything
+                  ? `Reset Heat #${currentHeat.heat_number}? This will clear all recorded times, places, and DNF flags for this heat and set it back to pending.`
+                  : `Reset Heat #${currentHeat.heat_number}? It currently has no saved results, but the timer will also be reset.`
+                if (!window.confirm(msg)) return
+                resetHeatM.mutate()
+              }}
               disabled={resetHeatM.isPending}
               title="Reset heat back to pending (clears times, places, and DNF flags)"
               className="rounded px-2 py-0.5 text-xs text-slate-400/50 transition-colors hover:bg-slate-200/70 hover:text-slate-600 disabled:opacity-40 dark:text-slate-500/50 dark:hover:bg-slate-700/60 dark:hover:text-slate-400"
