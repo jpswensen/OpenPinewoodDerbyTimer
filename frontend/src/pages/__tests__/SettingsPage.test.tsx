@@ -52,17 +52,17 @@ describe('SettingsPage', () => {
     renderWithProviders(<SettingsPage />)
 
     await waitFor(() => {
-      expect(screen.getByText('Serial')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Serial' })).toBeInTheDocument()
     })
   })
 
-  it('renders Network connection button', async () => {
+  it('does not render Network connection button when WiFi feature is disabled', async () => {
     renderWithProviders(<SettingsPage />)
 
     await waitFor(() => {
-      const networkBtns = screen.getAllByText('Network')
-      expect(networkBtns.length).toBeGreaterThan(0)
+      expect(screen.getByRole('button', { name: 'Serial' })).toBeInTheDocument()
     })
+    expect(screen.queryByRole('button', { name: 'Network' })).toBeNull()
   })
 
   it('renders lane count configuration', async () => {

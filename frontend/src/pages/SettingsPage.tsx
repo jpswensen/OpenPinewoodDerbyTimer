@@ -21,6 +21,7 @@ import {
 import { useTheme } from '../context/theme'
 import { cn } from '../lib/cn'
 import { STORAGE_KEYS, clampNumber, readBool, readNumber, readString, writeValue } from '../lib/settings'
+import { FEATURES } from '../lib/features'
 import { useWebSocket } from '../hooks/useWebSocket'
 
 type ConnMode = 'serial' | 'tcp'
@@ -38,6 +39,9 @@ export function SettingsPage() {
   const { mode: themeMode, setMode: setThemeMode } = useTheme()
 
   const [connMode, setConnMode] = useState<ConnMode>(() => {
+    // When WiFi/TCP is disabled at build time, force serial regardless of any
+    // previously stored preference so users aren't stranded on a hidden tab.
+    if (!FEATURES.wifi) return 'serial'
     const v = readString(STORAGE_KEYS.connectionMode, 'tcp')
     return v === 'serial' ? 'serial' : 'tcp'
   })
@@ -293,9 +297,11 @@ export function SettingsPage() {
               <Button variant={connMode === 'serial' ? 'primary' : 'secondary'} onClick={() => storeConnMode('serial')}>
                 Serial
               </Button>
-              <Button variant={connMode === 'tcp' ? 'primary' : 'secondary'} onClick={() => storeConnMode('tcp')}>
-                Network
-              </Button>
+              {FEATURES.wifi ? (
+                <Button variant={connMode === 'tcp' ? 'primary' : 'secondary'} onClick={() => storeConnMode('tcp')}>
+                  Network
+                </Button>
+              ) : null}
             </div>
 
             <label className="mt-3 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
@@ -304,7 +310,7 @@ export function SettingsPage() {
             </label>
           </div>
 
-          {connMode === 'serial' ? (
+          {connMode === 'serial' || !FEATURES.wifi ? (
             <div>
               <div className="text-sm font-semibold">Serial</div>
               <div className="mt-2 grid gap-2">
