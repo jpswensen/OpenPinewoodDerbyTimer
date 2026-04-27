@@ -50,9 +50,9 @@ function formatTimeUs(timeUs: number | null): string {
 }
 
 function formatElapsedUs(timeUs: number | null): string {
-  if (timeUs == null) return '—'
+  if (timeUs == null) return '0.0000s'
   const s = timeUs / 1_000_000
-  return s >= 10 ? `${s.toFixed(2)}s` : `${s.toFixed(3)}s`
+  return `${s.toFixed(4)}s`
 }
 
 function placeLabel(p: number | null): string {
@@ -73,11 +73,15 @@ function mapStateLabel(stateName: string | null | undefined): { label: string; c
 
 function elapsedUsFromRaceState(rs: TimerRaceState | null): number | null {
   if (!rs) return null
+  // Show 0 unless we have a real race start. Firmware sends start_time_us = -1
+  // outside of IN_RACE/FINISHED; treating that as "not started" prevents the
+  // elapsed display from showing micros()-since-boot when the timer is idle.
+  const sn = (rs.state_name || '').toUpperCase()
+  if (sn !== 'IN_RACE' && sn !== 'FINISHED') return 0
   const cur = rs.current_time_us
   const start = rs.start_time_us
-  if (cur == null) return null
-  if (start == null) return cur
-  return cur >= start ? cur - start : cur
+  if (cur == null || start == null || start < 0) return 0
+  return cur >= start ? cur - start : 0
 }
 
 function playSound(kind: 'start' | 'finish') {
