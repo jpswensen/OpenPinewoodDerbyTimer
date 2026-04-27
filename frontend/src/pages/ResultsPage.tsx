@@ -148,6 +148,11 @@ export function ResultsPage() {
 
     const runsByRacer = new Map<number, Run[]>()
     for (const h of heats) {
+      // Standings are computed from completed lane times only — pending /
+      // in_progress heats may carry stale or partial times that shouldn't
+      // contribute to averages, bests, or DNF counts. Matches the backend
+      // race_results aggregation (Heat.status == "completed").
+      if (h.status !== 'completed') continue
       for (const ln of h.lanes) {
         if (ln.racer_id == null) continue
         const run: Run = {
@@ -270,9 +275,16 @@ export function ResultsPage() {
     let closest: { delta_us: number; heat_number: number } | null = null
 
     for (const h of heats) {
-      const timesInHeat: number[] = []
+      // racerIds includes anyone assigned to any heat, regardless of status,
+      // so the racer count reflects participation. fastest/closest stats use
+      // only completed heats — matches the standings aggregation above.
       for (const ln of h.lanes) {
         if (ln.racer_id != null) racerIds.add(ln.racer_id)
+      }
+      if (h.status !== 'completed') continue
+
+      const timesInHeat: number[] = []
+      for (const ln of h.lanes) {
         if (ln.time_microseconds != null && ln.racer_id != null) {
           const t = ln.time_microseconds
           timesInHeat.push(t)
@@ -282,12 +294,10 @@ export function ResultsPage() {
         }
       }
 
-      if (h.status === 'completed') {
-        const sorted = timesInHeat.slice().sort((a, b) => a - b)
-        if (sorted.length >= 2) {
-          const delta = sorted[1] - sorted[0]
-          if (!closest || delta < closest.delta_us) closest = { delta_us: delta, heat_number: h.heat_number }
-        }
+      const sorted = timesInHeat.slice().sort((a, b) => a - b)
+      if (sorted.length >= 2) {
+        const delta = sorted[1] - sorted[0]
+        if (!closest || delta < closest.delta_us) closest = { delta_us: delta, heat_number: h.heat_number }
       }
     }
 
