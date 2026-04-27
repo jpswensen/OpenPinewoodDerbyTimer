@@ -134,6 +134,30 @@ def parse_status_message(frame: str) -> TimerStatus:
     )
 
 
+def lane_durations_us(status: "TimerStatus") -> list[int | None]:
+    """Convert raw firmware lane timestamps (micros() since boot) to durations
+    relative to the race start time.
+
+    Inactive lanes (raw == 0 or None) become None. If start_time_us is missing
+    or non-positive (RESET / SET state), all lanes become None too — there is
+    no race underway to be relative to.
+    """
+    raw = status.lane_end_times_us or []
+    start = status.start_time_us
+    if start is None or start <= 0:
+        return [None] * len(raw)
+    out: list[int | None] = []
+    for t in raw:
+        if t is None or t <= 0:
+            out.append(None)
+        elif t < start:
+            # Defensive: timestamp predates start; clamp to None instead of negative.
+            out.append(None)
+        else:
+            out.append(t - start)
+    return out
+
+
 def format_command_reset() -> bytes:
     return b"RESET\n"
 

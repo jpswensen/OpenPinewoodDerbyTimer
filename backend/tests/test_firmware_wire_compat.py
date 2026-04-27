@@ -13,6 +13,7 @@ from app.services.timer_protocol import (
     extract_framed_messages,
     format_command_reset,
     format_command_set_lanes,
+    lane_durations_us,
     parse_status_message,
 )
 
@@ -90,3 +91,29 @@ def test_gate_set_field_absent_old_firmware() -> None:
     assert format_command_reset() == b"RESET\n"
     # SET_LANES:n is what the new backend emits; firmware accepts it.
     assert format_command_set_lanes(4) == b"SET_LANES:4\n"
+
+
+def test_lane_durations_us_subtracts_start_time() -> None:
+    # Firmware emits absolute micros() since boot for both start and lane ends.
+    # Reproduces the user-reported bug: elapsed=11.7499s but lane shown 74.8402s
+    # because the raw lane timestamp wasn't being made relative.
+    frame = "$4,63090300,74840200,4,74840200,0,0,0,0,0,0,0,1*"
+    s = parse_status_message(frame)
+    durations = lane_durations_us(s)
+    # Only 4 lanes (num_lanes=4) — lane 1 finished, others DNF.
+    assert durations == [11749900, None, None, None]
+
+
+def test_lane_durations_us_returns_none_before_race() -> None:
+    # In RESET / SET, start_time_us is -1 and there are no real lane finishes.
+    frame = "$1,-1,1234567,4,0,0,0,0,0,0,0,0,1*"
+    s = parse_status_message(frame)
+    assert lane_durations_us(s) == [None, None, None, None]
+
+
+def test_lane_durations_us_clamps_predates_start_to_none() -> None:
+    # Defensive: a lane timestamp that predates start_time (shouldn't happen
+    # from firmware but could from a corrupted frame) becomes None, not negative.
+    frame = "$4,5000000,6000000,2,4000000,0,0,0,0,0,0,0,1*"
+    s = parse_status_message(frame)
+    assert lane_durations_us(s) == [None, None]

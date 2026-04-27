@@ -6,7 +6,7 @@ import os
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.services.event_bus import event_bus
-from app.services.timer_protocol import TimerState
+from app.services.timer_protocol import TimerState, lane_durations_us
 
 router = APIRouter(tags=["websocket"])
 
@@ -23,7 +23,9 @@ def _timer_status_payload(status) -> dict:
 
 
 def _lane_times_payload(status) -> dict:
-    lane_end_times_us = status.lane_end_times_us
+    # Convert raw firmware micros() timestamps to race-relative durations
+    # so the UI/DB never see absolute boot timestamps.
+    lane_end_times_us = lane_durations_us(status)
     finished = [(idx + 1, t) for idx, t in enumerate(lane_end_times_us) if t is not None and t > 0]
     finished.sort(key=lambda x: (x[1], x[0]))
     lane_places = {lane: place for place, (lane, _t) in enumerate(finished, start=1)}

@@ -38,7 +38,7 @@ class TestWebSocket(unittest.TestCase):
 
                 msg = ws.receive_json()
                 self.assertEqual(msg["type"], "lane_times")
-                self.assertEqual(msg["payload"]["lane_end_times_us"], [2000, 1500])
+                self.assertEqual(msg["payload"]["lane_end_times_us"], [1900, 1400])
                 self.assertEqual(msg["payload"]["lane_places"], {"2": 1, "1": 2})
 
                 msg = ws.receive_json()

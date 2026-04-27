@@ -16,6 +16,7 @@ from app.services.timer_protocol import (
     format_command_arm,
     format_command_reset,
     format_command_set_lanes,
+    lane_durations_us,
     parse_status_message,
 )
 
@@ -42,7 +43,8 @@ class ConnectionStatus:
                 "start_time_us": self.last_status.start_time_us,
                 "current_time_us": self.last_status.current_time_us,
                 "num_lanes": self.last_status.num_lanes,
-                "lane_end_times_us": self.last_status.lane_end_times_us,
+                # Convert raw firmware micros() timestamps to race-relative durations.
+                "lane_end_times_us": lane_durations_us(self.last_status),
                 "gate_set": self.last_status.gate_set,
             }
             if self.last_status
@@ -231,7 +233,9 @@ class ConnectionManager:
         }
 
     def _lane_times_payload(self, status: TimerStatus) -> dict:
-        lane_end_times_us = status.lane_end_times_us
+        # Convert raw firmware micros() timestamps to race-relative durations
+        # so the UI/DB never see absolute boot timestamps.
+        lane_end_times_us = lane_durations_us(status)
         finished = [(idx + 1, t) for idx, t in enumerate(lane_end_times_us) if t is not None and t > 0]
         finished.sort(key=lambda x: (x[1], x[0]))
         lane_places = {lane: place for place, (lane, _t) in enumerate(finished, start=1)}
