@@ -1,12 +1,12 @@
 // comms.cpp — serial-only host communication.
 //
-// Runs on Core 0 so it never contends with the gate ISRs / state machine
-// pinned to Core 1. Single producer (this task) for stdout means the global
-// `Serial` object only has one writer.
+// Runs on Core 1, sharing it with stateMachineTask and (when WiFi is enabled)
+// the ESP-IDF WiFi/TCP-IP protocol tasks, which are pinned to Core 1 by the
+// SDK.  Core 0 is reserved entirely for the tight timing loop in gatesCoreTask.
 //
-// Receive side is a simple line accumulator drained from loop() context.
-// Wire format is byte-for-byte compatible with the legacy ESP32 firmware
-// so the existing host parser keeps working unchanged.
+// commsCoreTask is the single writer to the RX line buffer; stateMachineTask
+// is the single reader via poll_command().  HardwareSerial TX is internally
+// synchronised so send_status() is safe to call from any Core-1 task.
 
 #include <Arduino.h>
 #include <string.h>
@@ -16,7 +16,7 @@
 #include "comms.h"
 #include "gates.h"
 
-static const int   COMMS_TASK_CORE = 0;
+static const int   COMMS_TASK_CORE = 1;   // same core as WiFi and stateMachineTask
 static const int   COMMS_TASK_PRIO = 5;
 
 // RX line buffer (single reader, drained in loop()).
