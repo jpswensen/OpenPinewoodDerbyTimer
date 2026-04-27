@@ -97,6 +97,28 @@ async def init_db(engine: AsyncEngine | None = None) -> None:
         except Exception:
             pass  # Column already exists
 
+        # Self-heal orphaned rows. Older builds (or data imported before the
+        # SQLite FK pragma was wired up) could leave heat_lanes / race_results
+        # referencing deleted heats / races. These orphans collide with new
+        # autoincrement IDs (e.g. UNIQUE(heat_id, lane_number) on regenerate).
+        try:
+            await conn.execute(
+                text(
+                    "DELETE FROM heat_lanes WHERE heat_id NOT IN (SELECT id FROM heats)"
+                )
+            )
+        except Exception:
+            pass
+
+        try:
+            await conn.execute(
+                text(
+                    "DELETE FROM race_results WHERE race_id NOT IN (SELECT id FROM races)"
+                )
+            )
+        except Exception:
+            pass
+
 
 async def get_db_session() -> AsyncIterator[AsyncSession]:
     session_maker = get_app_sessionmaker()

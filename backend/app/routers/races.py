@@ -148,6 +148,13 @@ async def generate_heats(
     heat_ids_q = select(Heat.id).where(Heat.race_id == race_id)
     await session.execute(delete(HeatLane).where(HeatLane.heat_id.in_(heat_ids_q)))
     await session.execute(delete(Heat).where(Heat.race_id == race_id))
+    # Defensive: drop any orphaned heat_lanes referencing deleted heats
+    # (legacy data from before SQLite FK enforcement was enabled). Without
+    # this, autoincrement may reuse a heat_id and collide with the
+    # UNIQUE(heat_id, lane_number) constraint on the next insert.
+    await session.execute(
+        delete(HeatLane).where(HeatLane.heat_id.notin_(select(Heat.id)))
+    )
     await session.flush()
     session.expire_all()
 

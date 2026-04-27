@@ -129,6 +129,36 @@ class TestAPIRaces(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(set(counts[rid].keys()), {1, 2, 3, 4})
             self.assertTrue(all(v == 1 for v in counts[rid].values()))
 
+    async def test_generate_heats_recovers_from_orphaned_heat_lanes(self) -> None:
+        # Regression: legacy data could contain heat_lanes pointing to deleted
+        # heat ids (FK enforcement was added late). Autoincrement reuses ids
+        # and the next generate-heats hit
+        # IntegrityError: UNIQUE(heat_id, lane_number).
+        gid = await self._create_group("Gorph")
+        racer_ids = [await self._create_racer(f"R{i}", gid) for i in range(1, 6)]
+        race_id = await self._create_race("Race-orph", 4)
+
+        # Create a heat, then forcibly orphan its heat_lanes by deleting the
+        # heat row directly (mirrors what older code paths did when FKs were
+        # off). We bypass the ORM cascade by issuing raw SQL.
+        from sqlalchemy import text
+
+        resp = await self.client.post(f"/api/races/{race_id}/generate-heats")
+        self.assertEqual(resp.status_code, 201)
+
+        async with self.engine.begin() as conn:
+            # Disable FKs for this connection so the orphaning DELETE succeeds.
+            await conn.execute(text("PRAGMA foreign_keys=OFF"))
+            await conn.execute(text("DELETE FROM heats"))
+            # Sanity: heat_lanes are now orphans.
+            cnt = (await conn.execute(text("SELECT COUNT(*) FROM heat_lanes"))).scalar()
+            self.assertGreater(cnt or 0, 0)
+
+        # Regenerating must succeed and ignore/clean up orphans.
+        resp = await self.client.post(f"/api/races/{race_id}/generate-heats")
+        self.assertEqual(resp.status_code, 201, resp.text)
+        self.assertEqual(len(resp.json()), len(racer_ids))
+
     async def test_reset_completed_heat_clears_stale_race_results(self) -> None:
         # Regression: previously, recalculate_race_results only ran when the
         # heat was set to "completed". Resetting a heat back to "pending"
