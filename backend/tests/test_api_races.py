@@ -129,6 +129,58 @@ class TestAPIRaces(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(set(counts[rid].keys()), {1, 2, 3, 4})
             self.assertTrue(all(v == 1 for v in counts[rid].values()))
 
+    async def test_reset_completed_heat_clears_stale_race_results(self) -> None:
+        # Regression: previously, recalculate_race_results only ran when the
+        # heat was set to "completed". Resetting a heat back to "pending"
+        # left stale RaceResult rows in place — those were then surfaced in
+        # the PDF export with bogus averages/places.
+        gid = await self._create_group("Greset")
+        racer_ids = [await self._create_racer(f"R{i}", gid) for i in range(1, 5)]
+        race_id = await self._create_race("Race-reset", 4)
+
+        resp = await self.client.post(f"/api/races/{race_id}/generate-heats")
+        self.assertEqual(resp.status_code, 201)
+        heat_id = resp.json()[0]["id"]
+
+        # Complete the heat with finish times — populates RaceResult.
+        upd = {
+            "status": "completed",
+            "lanes": [
+                {"lane_number": ln, "time_microseconds": t}
+                for ln, t in {1: 1200, 2: 900, 3: 1100, 4: 1300}.items()
+            ],
+        }
+        resp = await self.client.put(f"/api/heats/{heat_id}", json=upd)
+        self.assertEqual(resp.status_code, 200)
+
+        async with self.Session() as session:
+            res = await session.execute(select(RaceResult).where(RaceResult.race_id == race_id))
+            results = {rr.racer_id: rr for rr in res.scalars().all()}
+            self.assertEqual(set(results.keys()), set(racer_ids))
+            self.assertTrue(any(rr.average_time is not None for rr in results.values()))
+
+        # Reset the heat back to pending and null the times — exactly what
+        # the UI's "Reset Heat" button does.
+        reset_payload = {
+            "status": "pending",
+            "lanes": [
+                {"lane_number": ln, "time_microseconds": None, "dnf": False}
+                for ln in (1, 2, 3, 4)
+            ],
+        }
+        resp = await self.client.put(f"/api/heats/{heat_id}", json=reset_payload)
+        self.assertEqual(resp.status_code, 200)
+
+        # All RaceResult averages/places should now be cleared — no stale
+        # rows leaking into the PDF export.
+        async with self.Session() as session:
+            res = await session.execute(select(RaceResult).where(RaceResult.race_id == race_id))
+            results = list(res.scalars().all())
+            for rr in results:
+                self.assertIsNone(rr.average_time, f"racer {rr.racer_id} still has stale average_time")
+                self.assertIsNone(rr.best_time, f"racer {rr.racer_id} still has stale best_time")
+                self.assertIsNone(rr.overall_place, f"racer {rr.racer_id} still has stale overall_place")
+
     async def test_heat_update_places_results_and_repeat(self) -> None:
         gid = await self._create_group("G3")
         racer_ids = [await self._create_racer(f"R{i}", gid) for i in range(1, 5)]

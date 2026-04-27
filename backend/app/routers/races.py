@@ -342,8 +342,12 @@ async def update_heat(
         for idx, hl in enumerate(finished, start=1):
             hl.place = idx
 
-    if heat.status == "completed":
-        await recalculate_race_results(session, heat.race_id)
+    # Recalculate race-wide results whenever a heat is touched. Previously this
+    # only ran when the new status was "completed", which left stale
+    # RaceResult rows in place after a heat was reset (completed → pending) or
+    # bumped back to pending by a DNF toggle. Those stale rows were then
+    # surfaced in the PDF export and any other consumers of RaceResult.
+    await recalculate_race_results(session, heat.race_id)
 
     await session.commit()
 
