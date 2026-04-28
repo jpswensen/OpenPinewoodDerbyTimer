@@ -121,14 +121,17 @@ static void stateMachineTask(void *) {
 // from coming up.  The task self-deletes after one shot.
 #ifdef PWDTIMER_ENABLE_WIFI
 static void wifiInitTask(void *) {
-    serial_println("wifi: starting SoftAP\xe2\x80\xa6");
+    Serial.println("wifi: starting SoftAP…");
+    Serial.flush();
     if (wifi_ap_begin()) {
-        serial_println("wifi: AP up, starting UDP");
+        Serial.println("wifi: AP up, starting UDP");
+        Serial.flush();
         udp_begin();
-        serial_println("wifi: UDP ready");
+        Serial.println("wifi: UDP ready");
     } else {
-        serial_println("wifi: SoftAP failed; serial only");
+        Serial.println("wifi: SoftAP failed; serial only");
     }
+    Serial.flush();
     vTaskDelete(nullptr);
 }
 #endif
@@ -136,15 +139,17 @@ static void wifiInitTask(void *) {
 void setup() {
     setup_comms();
     delay(200);
-    serial_println("");
+    Serial.println();
 #ifdef PWDTIMER_ENABLE_WIFI
-    serial_println("PWDTimer firmware \xe2\x80\x94 serial + UDP, ESP32-DEVKITC-32D");
+    Serial.println("PWDTimer firmware — serial + UDP, ESP32-DEVKITC-32D");
 #else
-    serial_println("PWDTimer firmware \xe2\x80\x94 serial only, ESP32-DEVKITC-32D");
+    Serial.println("PWDTimer firmware — serial only, ESP32-DEVKITC-32D");
 #endif
+    Serial.flush();
 
     setup_gates();
-    serial_println("gates: ready");
+    Serial.println("gates: ready");
+    Serial.flush();
 
     xTaskCreatePinnedToCore(stateMachineTask, "stateTask",
                             STATE_TASK_STACK, nullptr,
@@ -164,7 +169,4 @@ void loop() {
     // gatesCoreTask (Core 1).  Suspend this task permanently rather than
     // busy-spinning through an empty Arduino loop.
     vTaskSuspend(nullptr);
-
-    // Serial.println("loop");
-    // delay(1000);
 }
