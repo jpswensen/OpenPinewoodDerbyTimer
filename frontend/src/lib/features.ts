@@ -1,6 +1,7 @@
 // Feature flags. Sourced from Vite env vars (VITE_*) at build time.
-// Defaults are conservative: WiFi/TCP/mDNS hidden until explicitly enabled,
-// since the current firmware is serial-only.
+// The firmware exposes a SoftAP + UDP transport simultaneously with serial
+// (PWDTIMER_ENABLE_WIFI=1, default ON), so the Wi-Fi UI is on by default.
+// Set VITE_ENABLE_WIFI=0 at build time to hide the network/UDP modes.
 
 function readBoolEnv(value: unknown, fallback: boolean): boolean {
   if (typeof value !== 'string') return fallback
@@ -11,7 +12,6 @@ function readBoolEnv(value: unknown, fallback: boolean): boolean {
 }
 
 export const FEATURES = {
-  // Show TCP/network connection mode + mDNS discovery UI.
-  // Default: false (firmware does not currently support WiFi).
-  wifi: readBoolEnv(import.meta.env.VITE_ENABLE_WIFI, false),
+  // Show TCP (mDNS) and Wi-Fi (UDP) connection modes in Settings.
+  wifi: readBoolEnv(import.meta.env.VITE_ENABLE_WIFI, true),
 } as const
