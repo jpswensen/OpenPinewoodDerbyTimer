@@ -68,10 +68,10 @@ static uint32_t s_startGateMask = 0;    // always bank 0
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 
 // ── Shared timing state — every access protected by s_mux ─────────────────
-static volatile int64_t  s_startUs              = -1; // micros() at start; -1 = not started
-static volatile uint32_t s_startCycles          = 0;  // CCOUNT at start
-static volatile uint32_t s_endCycles[MAX_LANES] = {}; // CCOUNT at each lane finish
-static volatile bool     s_laneFinished[MAX_LANES] = {};
+static volatile int64_t  s_startUs                  = -1; // micros() at start; -1 = not started
+static volatile uint64_t s_startCycles64            = 0;  // 64-bit extended CCOUNT at start
+static volatile uint64_t s_endCycles64[MAX_LANES]   = {}; // 64-bit extended CCOUNT at each lane finish
+static volatile bool     s_laneFinished[MAX_LANES]  = {};
 
 // ── Lane count (written Core 1, read Core 0) ───────────────────────────────
 // A single aligned 32-bit write is atomic on Xtensa LX6; no spinlock needed.
@@ -98,10 +98,22 @@ static void IRAM_ATTR gatesCoreTask(void *) {
     uint32_t prevLo = REG_READ(GPIO_IN_REG);
     uint32_t prevHi = REG_READ(GPIO_IN1_REG);
 
+    // Extend the 32-bit Xtensa cycle counter to 64 bits by tracking wraps.
+    // CCOUNT wraps every (2^32 / 240e6) ≈ 17.9 s at 240 MHz, which would
+    // otherwise corrupt lane finish-time deltas for any race or manual test
+    // that takes longer than that.  This loop runs continuously (with at
+    // most a 1 ms vTaskDelay during RESET/FINISHED) so we will never miss
+    // more than one wrap between iterations.
+    uint32_t prevCcount   = get_ccount();
+    uint64_t ccountHigh   = 0;
+
     for (;;) {
         // Snapshot the cycle counter before reading the GPIO banks so that
         // every pin sampled in this iteration shares the same timestamp.
-        const uint32_t cycles = get_ccount();
+        const uint32_t ccount32 = get_ccount();
+        if (ccount32 < prevCcount) ccountHigh += (1ULL << 32);
+        prevCcount = ccount32;
+        const uint64_t cycles = ccountHigh | ccount32;
         const uint32_t lo     = REG_READ(GPIO_IN_REG);   // GPIO  0-31 (~4 ns later)
         const uint32_t hi     = REG_READ(GPIO_IN1_REG);  // GPIO 32-39 (~8 ns later)
 
@@ -112,10 +124,10 @@ static void IRAM_ATTR gatesCoreTask(void *) {
             // FALLING edge on start-gate pin (active-low with pull-up).
             if ((prevLo & s_startGateMask) && !(lo & s_startGateMask)) {
                 portENTER_CRITICAL(&s_mux);
-                s_startUs     = (int64_t)micros();
-                s_startCycles = cycles;
+                s_startUs       = (int64_t)micros();
+                s_startCycles64 = cycles;
                 for (int i = 0; i < MAX_LANES; ++i) {
-                    s_endCycles[i]    = 0;
+                    s_endCycles64[i]  = 0;
                     s_laneFinished[i] = false;
                 }
                 portEXIT_CRITICAL(&s_mux);
@@ -136,7 +148,7 @@ static void IRAM_ATTR gatesCoreTask(void *) {
                     if (fell & s_laneMask[i]) {
                         localFinished[i] = true;
                         portENTER_CRITICAL(&s_mux);
-                        s_endCycles[i]    = cycles;
+                        s_endCycles64[i]  = cycles;
                         s_laneFinished[i] = true;
                         portEXIT_CRITICAL(&s_mux);
                     } else {
@@ -192,10 +204,10 @@ void set_num_gates(int n) {
 
 void reset_gates() {
     portENTER_CRITICAL(&s_mux);
-    s_startUs     = -1;
-    s_startCycles = 0;
+    s_startUs       = -1;
+    s_startCycles64 = 0;
     for (int i = 0; i < MAX_LANES; ++i) {
-        s_endCycles[i]    = 0;
+        s_endCycles64[i]  = 0;
         s_laneFinished[i] = false;
     }
     portEXIT_CRITICAL(&s_mux);
@@ -208,15 +220,15 @@ bool is_starting_gate_set() {
 void read_gates(int64_t &startOut, int64_t *endTimesOut) {
     // Take an atomic cross-core snapshot of all timing data.
     int64_t  snapStart;
-    uint32_t snapStartCyc;
-    uint32_t snapEnd[MAX_LANES];
+    uint64_t snapStartCyc;
+    uint64_t snapEnd[MAX_LANES];
     bool     snapFin[MAX_LANES];
 
     portENTER_CRITICAL(&s_mux);
     snapStart    = s_startUs;
-    snapStartCyc = s_startCycles;
+    snapStartCyc = s_startCycles64;
     for (int i = 0; i < MAX_LANES; ++i) {
-        snapEnd[i] = s_endCycles[i];
+        snapEnd[i] = s_endCycles64[i];
         snapFin[i] = s_laneFinished[i];
     }
     portEXIT_CRITICAL(&s_mux);
@@ -224,9 +236,10 @@ void read_gates(int64_t &startOut, int64_t *endTimesOut) {
     startOut = snapStart;
     for (int i = 0; i < MAX_LANES; ++i) {
         if (snapFin[i] && snapStart > 0) {
-            // Cycle delta -> microsecond offset added to the absolute start
-            // timestamp, giving ~4 ns relative resolution between lanes.
-            const uint32_t dt = snapEnd[i] - snapStartCyc;
+            // 64-bit cycle delta -> microsecond offset added to the absolute
+            // start timestamp, giving ~4 ns relative resolution between lanes
+            // and no wraparound for any plausible race duration.
+            const uint64_t dt = snapEnd[i] - snapStartCyc;
             endTimesOut[i] = snapStart + (int64_t)(dt / CPU_FREQ_MHZ);
         } else {
             endTimesOut[i] = 0;
