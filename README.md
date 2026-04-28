@@ -32,7 +32,7 @@ A modern, full-stack race management system for Pinewood Derby events. PWDTimer 
 │  Routers: races, racers, groups, connection, certificates, ws    │
 │  Services: heat_scheduler, connection_manager, timer_protocol    │
 └──────────────────┬───────────────────────────────────────────────┘
-                   │ Serial (USB), TCP (WiFi), or UDP (SoftAP)
+                   │ Serial (USB) or UDP (SoftAP)
                    ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                    ESP32 Firmware                                 │
@@ -246,8 +246,7 @@ This system works with custom ESP32-based timing hardware supporting **4–8 lan
 
 | Board | MCU | Lanes | Connection |
 |-------|-----|-------|------------|
-| PWDTimer V2 (primary) | ESP32 | 8 | USB Serial + WiFi AP |
-| SunnysideTimer V1 | ESP8266 | 4 | USB Serial only |
+| PWDTimer V2 (DoIT ESP32) | ESP32 | 8 | USB Serial + optional WiFi UDP |
 
 ## Deployment
 
@@ -301,60 +300,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-### Option 3: Systemd (Linux auto-start)
-
-Install as a system service for headless deployment (e.g., a dedicated Raspberry Pi):
-
-```bash
-# 1. Copy application to /opt/pwdtimer
-sudo mkdir -p /opt/pwdtimer
-sudo cp -r . /opt/pwdtimer/
-
-# 2. Create dedicated user
-sudo useradd -r -s /bin/false pwdtimer
-sudo mkdir -p /opt/pwdtimer/data
-sudo chown -R pwdtimer:pwdtimer /opt/pwdtimer
-
-# 3. Set up Python venv and install deps
-cd /opt/pwdtimer
-sudo -u pwdtimer python3 -m venv env
-sudo -u pwdtimer env/bin/pip install -r backend/requirements.txt gunicorn
-
-# 4. Build frontend
-cd /opt/pwdtimer/frontend && npm ci && npm run build
-
-# 5. Install and start the service
-sudo cp deploy/pwdtimer.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now pwdtimer
-
-# Check status
-sudo systemctl status pwdtimer
-```
-
-### Option 4: macOS launchd (auto-start)
-
-For macOS deployments:
-
-```bash
-# 1. Copy application to /opt/pwdtimer and set up (same as steps 1-4 above)
-
-# 2. Install the launch agent
-cp deploy/com.pwdtimer.server.plist ~/Library/LaunchAgents/
-
-# 3. Load and start
-launchctl load ~/Library/LaunchAgents/com.pwdtimer.server.plist
-
-# Check status
-launchctl list | grep pwdtimer
-
-# Stop
-launchctl unload ~/Library/LaunchAgents/com.pwdtimer.server.plist
-```
-
-Logs are written to `/opt/pwdtimer/data/pwdtimer.log`.
-
-### Option 5: Desktop App (pywebview)
+### Option 3: Desktop App (pywebview)
 
 Run PWDTimer as a native desktop application with a chromeless window — no browser address bar, no tab management. The app uses the OS-native webview (WebKit on macOS, Edge WebView2 on Windows, WebKitGTK on Linux).
 
@@ -383,7 +329,7 @@ The launcher automatically:
 
 > **Tip:** If pywebview is not installed, the launcher gracefully falls back to opening your default browser.
 
-### Option 6: Standalone Binary (PyInstaller)
+### Option 4: Standalone Binary (PyInstaller)
 
 Package PWDTimer into a **self-contained application** — Python, all dependencies, the backend, and the built frontend are all bundled together. Transfer the app to any compatible machine with no Python installation required.
 
