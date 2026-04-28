@@ -9,7 +9,7 @@ A modern, full-stack race management system for Pinewood Derby events. PWDTimer 
 | **Participant Management** | Organize racers into groups (Tiger Cubs, Wolf, Bear, Webelos, etc.) with CSV import/export |
 | **Automatic Heat Scheduling** | Fair round-robin lane rotation ensuring every racer competes in every lane |
 | **Real-time Race Display** | Live timing via WebSocket with place indicators as cars finish |
-| **Multiple Connections** | USB serial, TCP (WiFi/mDNS), and direct UDP-over-SoftAP support for the timing hardware |
+| **Serial & WiFi** | USB serial (primary) and UDP-over-SoftAP (optional) for the timing hardware |
 | **Results & Rankings** | Automatic average/best time calculation, overall and per-group standings |
 | **PDF Export** | Professional race results documents (letter/A4, portrait/landscape) |
 | **Award Certificates** | Decorative winner and participation certificates with batch generation |
@@ -157,6 +157,7 @@ PWDTimer/
 ├── start.sh                    # Development startup script
 ├── start-prod.sh               # Production startup script
 ├── run-desktop.sh              # Desktop app launcher (pywebview)
+├── clean.sh                    # Remove build artifacts (build/, dist/, frontend/dist/)
 ├── build.sh                    # Standalone binary build (macOS/Linux)
 ├── build.bat                   # Standalone binary build (Windows)
 ├── pwdtimer.spec               # PyInstaller spec file
@@ -174,6 +175,10 @@ PWDTimer/
 | [Python Implementation Review](docs/01_python_implementation_review.md) | Analysis of the legacy PyQt5 application |
 | [Firmware/Hardware Review](docs/02_firmware_hardware_review.md) | Analysis of legacy firmware and board designs |
 | [Code Review Findings](docs/03_code_review_findings.md) | Issues found and fixed during quality review |
+
+### Lane Count
+
+The number of active lanes is a **global setting** (Settings → Lane Count) rather than a per-race option. Set it once to match your track hardware and it applies to every race and heat automatically.
 
 ### Connecting over Wi-Fi (UDP)
 
@@ -380,7 +385,7 @@ The launcher automatically:
 
 ### Option 6: Standalone Binary (PyInstaller)
 
-Package PWDTimer into a **single executable** that includes Python, all dependencies, the backend, and the built frontend. Transfer the binary to any compatible machine — no Python installation required.
+Package PWDTimer into a **self-contained application** — Python, all dependencies, the backend, and the built frontend are all bundled together. Transfer the app to any compatible machine with no Python installation required.
 
 **Build:**
 
@@ -394,23 +399,80 @@ cd PWDTimer
 build.bat
 ```
 
-The build script creates a dedicated virtual environment, installs dependencies, builds the frontend, and runs PyInstaller. The output is a single file:
+The build script creates a dedicated virtual environment, installs dependencies, builds the frontend, and runs PyInstaller. Output:
 
 | Platform | Output |
 |----------|--------|
-| macOS | `dist/PWDTimer` |
+| macOS | `dist/PWDTimer.app` |
 | Linux | `dist/PWDTimer` |
 | Windows | `dist\PWDTimer.exe` |
 
 **Run:**
 
 ```bash
-./dist/PWDTimer                # Native desktop window
-./dist/PWDTimer --headless     # Opens in default browser
-./dist/PWDTimer --port 8080    # Use a specific port
+# macOS — double-click in Finder, or from Terminal:
+open dist/PWDTimer.app
+./dist/PWDTimer.app/Contents/MacOS/PWDTimer            # native desktop window
+./dist/PWDTimer.app/Contents/MacOS/PWDTimer --headless # opens in default browser
+
+# Linux / Windows
+./dist/PWDTimer                # native desktop window
+./dist/PWDTimer --headless     # opens in default browser
+./dist/PWDTimer --port 8080    # use a specific port
 ```
 
-> **Note:** The standalone binary must be built on the same OS/architecture as the target machine (e.g., build on macOS for macOS, build on Windows for Windows). The database file (`pwdtimer.db`) is created in the working directory at runtime.
+**Database location:**
+
+The database is stored in a persistent, platform-specific directory so data survives app updates and rebuilds:
+
+| Platform | Path |
+|----------|------|
+| macOS | `~/Library/Application Support/PWDTimer/pwdtimer.db` |
+| Windows | `%APPDATA%\PWDTimer\pwdtimer.db` |
+| Linux | `~/.local/share/PWDTimer/pwdtimer.db` |
+
+**Multiple databases (e.g., different congregations):**
+
+Use the `--db` flag to point the app at any SQLite file. The directory is created automatically and the filename appears in the window title so you always know which database is loaded.
+
+```bash
+# macOS
+./dist/PWDTimer.app/Contents/MacOS/PWDTimer --db ~/races/ward1.db
+./dist/PWDTimer.app/Contents/MacOS/PWDTimer --db ~/races/ward2.db
+
+# Linux / Windows
+./dist/PWDTimer --db ~/races/ward1.db
+./dist/PWDTimer --db ~/races/ward2.db
+```
+
+> **Tip:** Create a small shell script (or `.command` file on macOS) for each congregation so volunteers can double-click to open the right database without touching a terminal.
+>
+> ```bash
+> #!/bin/bash
+> # Ward1.command — make executable with: chmod +x Ward1.command
+> /Applications/PWDTimer.app/Contents/MacOS/PWDTimer --db ~/races/ward1.db
+> ```
+
+**Zoom / scaling:**
+
+In the desktop window, standard browser zoom shortcuts work:
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd/Ctrl` + `=` or `+` | Zoom in |
+| `Cmd/Ctrl` + `-` | Zoom out |
+| `Cmd/Ctrl` + `0` | Reset to 100% |
+
+Zoom level is saved to the browser's `localStorage` and restored on the next launch.
+
+**Cleaning build artifacts:**
+
+```bash
+./clean.sh         # removes build/, dist/, frontend/dist/
+./clean.sh --all   # also removes node_modules/ and build_env/ (full reset)
+```
+
+> **Note:** The standalone binary must be built on the same OS/architecture as the target machine (build on macOS for macOS, build on Windows for Windows).
 
 ## License
 
