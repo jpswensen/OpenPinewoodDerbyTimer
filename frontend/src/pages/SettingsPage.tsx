@@ -9,14 +9,12 @@ import { ApiError } from '../api/client'
 import {
   connectTimer,
   disconnectTimer,
-  discoverMdns,
   getConnectionStatus,
   listSerialPorts,
   resetAllData,
   setTimerLanes,
   toggleSerialMonitor,
   type ConnectionStatus,
-  type MdnsDiscoveryResponse,
 } from '../api/endpoints/connection'
 import { useTheme } from '../context/theme'
 import { cn } from '../lib/cn'
@@ -24,7 +22,7 @@ import { STORAGE_KEYS, clampNumber, readBool, readNumber, readString, writeValue
 import { FEATURES } from '../lib/features'
 import { useWebSocket } from '../hooks/useWebSocket'
 
-type ConnMode = 'serial' | 'tcp' | 'udp'
+type ConnMode = 'serial' | 'udp'
 
 function statusPill(status: ConnectionStatus['connection_state'] | undefined) {
   const base = 'inline-flex rounded-full px-3 py-1 text-xs font-semibold'
@@ -39,18 +37,15 @@ export function SettingsPage() {
   const { mode: themeMode, setMode: setThemeMode } = useTheme()
 
   const [connMode, setConnMode] = useState<ConnMode>(() => {
-    // When WiFi/TCP is disabled at build time, force serial regardless of any
+    // When WiFi is disabled at build time, force serial regardless of any
     // previously stored preference so users aren't stranded on a hidden tab.
     if (!FEATURES.wifi) return 'serial'
-    const v = readString(STORAGE_KEYS.connectionMode, 'tcp')
-    if (v === 'serial') return 'serial'
+    const v = readString(STORAGE_KEYS.connectionMode, 'serial')
     if (v === 'udp') return 'udp'
-    return 'tcp'
+    return 'serial'
   })
   const [serialPort, setSerialPort] = useState(() => readString(STORAGE_KEYS.serialPort, ''))
   const [baudrate, setBaudrate] = useState(() => readNumber(STORAGE_KEYS.serialBaudrate, 115200, { min: 1200, max: 921600, integer: true }))
-  const [tcpHost, setTcpHost] = useState(() => readString(STORAGE_KEYS.tcpHost, 'pwdtimer.local'))
-  const [tcpPort, setTcpPort] = useState(() => readNumber(STORAGE_KEYS.tcpPort, 8080, { min: 1, max: 65535, integer: true }))
   const [udpHost, setUdpHost] = useState(() => readString(STORAGE_KEYS.udpHost, '192.168.4.1'))
   const [udpCmdPort, setUdpCmdPort] = useState(() => readNumber(STORAGE_KEYS.udpCmdPort, 9100, { min: 1, max: 65535, integer: true }))
   const [udpStatusPort, setUdpStatusPort] = useState(() => readNumber(STORAGE_KEYS.udpStatusPort, 9101, { min: 1, max: 65535, integer: true }))
@@ -65,8 +60,6 @@ export function SettingsPage() {
   const [soundStartUrl, setSoundStartUrl] = useState(() => readString(STORAGE_KEYS.soundStartUrl, ''))
   const [soundFinishUrl, setSoundFinishUrl] = useState(() => readString(STORAGE_KEYS.soundFinishUrl, ''))
 
-  const [mdnsResult, setMdnsResult] = useState<MdnsDiscoveryResponse | null>(null)
-
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showSerialMonitor, setShowSerialMonitor] = useState(false)
   const [serialMonitorEnabled, setSerialMonitorEnabled] = useState(false)
@@ -76,18 +69,6 @@ export function SettingsPage() {
   const statusQ = useQuery({ queryKey: ['connection', 'status'], queryFn: getConnectionStatus, refetchInterval: 2000 })
   const portsQ = useQuery({ queryKey: ['connection', 'serial-ports'], queryFn: listSerialPorts })
 
-  const mdnsM = useMutation({
-    mutationFn: () => discoverMdns(1.5),
-    onSuccess: (res) => {
-      setMdnsResult(res)
-      toast({ variant: 'success', title: 'mDNS discovery complete', description: `${res.services.length} service(s) found` })
-    },
-    onError: (e) => {
-      const msg = e instanceof ApiError ? e.message : 'Failed to discover mDNS'
-      toast({ variant: 'error', title: 'mDNS discovery failed', description: msg })
-    },
-  })
-
   const connectM = useMutation({
     mutationFn: async () => {
       if (connMode === 'serial') {
@@ -95,19 +76,14 @@ export function SettingsPage() {
         if (!port) throw new ApiError('Select a serial port first', 400, null)
         return connectTimer({ mode: 'serial', serial_port: port, baudrate, auto_reconnect: autoReconnect })
       }
-      if (connMode === 'udp') {
-        const host = udpHost.trim() || '192.168.4.1'
-        return connectTimer({
-          mode: 'udp',
-          udp_host: host,
-          udp_cmd_port: udpCmdPort,
-          udp_status_port: udpStatusPort,
-          auto_reconnect: autoReconnect,
-        })
-      }
-      const host = tcpHost.trim()
-      if (!host) throw new ApiError('Enter a host first', 400, null)
-      return connectTimer({ mode: 'tcp', host, port: tcpPort, auto_reconnect: autoReconnect })
+      const host = udpHost.trim() || '192.168.4.1'
+      return connectTimer({
+        mode: 'udp',
+        udp_host: host,
+        udp_cmd_port: udpCmdPort,
+        udp_status_port: udpStatusPort,
+        auto_reconnect: autoReconnect,
+      })
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['connection', 'status'] })
@@ -203,17 +179,6 @@ export function SettingsPage() {
     const v = Math.trunc(clampNumber(next, 1200, 921600))
     setBaudrate(v)
     writeValue(STORAGE_KEYS.serialBaudrate, v)
-  }
-
-  function storeTcpHost(next: string) {
-    setTcpHost(next)
-    writeValue(STORAGE_KEYS.tcpHost, next)
-  }
-
-  function storeTcpPort(next: number) {
-    const v = Math.trunc(clampNumber(next, 1, 65535))
-    setTcpPort(v)
-    writeValue(STORAGE_KEYS.tcpPort, v)
   }
 
   function storeUdpHost(next: string) {
@@ -330,11 +295,6 @@ export function SettingsPage() {
                 Serial
               </Button>
               {FEATURES.wifi ? (
-                <Button variant={connMode === 'tcp' ? 'primary' : 'secondary'} onClick={() => storeConnMode('tcp')}>
-                  Network
-                </Button>
-              ) : null}
-              {FEATURES.wifi ? (
                 <Button variant={connMode === 'udp' ? 'primary' : 'secondary'} onClick={() => storeConnMode('udp')}>
                   Wi-Fi (UDP)
                 </Button>
@@ -384,7 +344,7 @@ export function SettingsPage() {
                 </div>
               </div>
             </div>
-          ) : connMode === 'udp' ? (
+          ) : (
             <div>
               <div className="text-sm font-semibold">Wi-Fi (UDP)</div>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
@@ -433,82 +393,6 @@ export function SettingsPage() {
                 >
                   Reset to firmware defaults
                 </Button>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <div className="text-sm font-semibold">Network</div>
-              <div className="mt-2 grid gap-2">
-                <div className="grid grid-cols-3 gap-2">
-                  <label className="col-span-2 text-sm text-slate-700 dark:text-slate-200">
-                    Host
-                    <input
-                      className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm dark:border-slate-800 dark:bg-slate-950"
-                      value={tcpHost}
-                      onChange={(e) => storeTcpHost(e.target.value)}
-                      placeholder="pwdtimer.local"
-                    />
-                  </label>
-                  <label className="text-sm text-slate-700 dark:text-slate-200">
-                    Port
-                    <input
-                      className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm dark:border-slate-800 dark:bg-slate-950"
-                      value={tcpPort}
-                      onChange={(e) => storeTcpPort(Number(e.target.value))}
-                      inputMode="numeric"
-                    />
-                  </label>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="secondary" onClick={() => mdnsM.mutate()} disabled={mdnsM.isPending}>
-                    Discover mDNS
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      storeTcpHost('pwdtimer.local')
-                      storeTcpPort(8080)
-                    }}
-                  >
-                    Use pwdtimer.local
-                  </Button>
-                </div>
-
-                {mdnsResult ? (
-                  <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-200">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Discovered</div>
-                    <div className="mt-2 space-y-2">
-                      {mdnsResult.services.length ? (
-                        <div>
-                          <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">Services</div>
-                          <div className="mt-1 flex flex-col gap-1">
-                            {mdnsResult.services.map((s) => (
-                              <button
-                                key={`${s.host}:${s.port}:${s.name}`}
-                                type="button"
-                                className="text-left text-sm underline decoration-slate-300 hover:decoration-slate-500 dark:decoration-slate-700"
-                                onClick={() => {
-                                  storeTcpHost(s.host)
-                                  storeTcpPort(s.port)
-                                }}
-                              >
-                                {s.name} — {s.host}:{s.port}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-
-                      <div>
-                        <div className="text-xs font-semibold text-slate-600 dark:text-slate-300">pwdtimer.local</div>
-                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {mdnsResult.pwdtimer_local_addresses.length ? mdnsResult.pwdtimer_local_addresses.join(', ') : 'No addresses resolved'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
               </div>
             </div>
           )}
