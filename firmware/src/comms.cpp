@@ -20,7 +20,9 @@
 
 #include "comms.h"
 #include "gates.h"
+#ifdef PWDTIMER_ENABLE_WIFI
 #include "udp_comms.h"
+#endif
 
 static const int   COMMS_TASK_CORE = 0;   // same core as WiFi and stateMachineTask
 static const int   COMMS_TASK_PRIO = 5;
@@ -142,7 +144,9 @@ void send_status(TimerState_t st, long startTime, long currentTime,
              endTimes[4], endTimes[5], endTimes[6], endTimes[7],
              gateSet ? 1 : 0);
     Serial.println(buf);
+#ifdef PWDTIMER_ENABLE_WIFI
     udp_broadcast_line(buf);
+#endif
 }
 
 RecvMessage_t poll_command(int *param) {

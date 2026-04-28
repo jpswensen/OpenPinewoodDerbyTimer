@@ -26,8 +26,10 @@
 #include "state.h"
 #include "gates.h"
 #include "comms.h"
+#ifdef PWDTIMER_ENABLE_WIFI
 #include "wifi_ap.h"
 #include "udp_comms.h"
+#endif
 
 static const uint32_t RACE_STATUS_INTERVAL_MS = 100;   // 10 Hz during SET / IN_RACE
 static const uint32_t IDLE_STATUS_INTERVAL_MS = 1000;  // 1  Hz otherwise
@@ -114,23 +116,50 @@ static void stateMachineTask(void *) {
     }
 }
 
+// WiFi/UDP startup is deferred to its own task so that any blocking call,
+// brownout, or panic inside softAP() can never prevent the serial transport
+// from coming up.  The task self-deletes after one shot.
+#ifdef PWDTIMER_ENABLE_WIFI
+static void wifiInitTask(void *) {
+    Serial.println("wifi: starting SoftAP…");
+    Serial.flush();
+    if (wifi_ap_begin()) {
+        Serial.println("wifi: AP up, starting UDP");
+        Serial.flush();
+        udp_begin();
+        Serial.println("wifi: UDP ready");
+    } else {
+        Serial.println("wifi: SoftAP failed; serial only");
+    }
+    Serial.flush();
+    vTaskDelete(nullptr);
+}
+#endif
+
 void setup() {
     setup_comms();
     delay(200);
     Serial.println();
+#ifdef PWDTIMER_ENABLE_WIFI
     Serial.println("PWDTimer firmware — serial + UDP, ESP32-DEVKITC-32D");
+#else
+    Serial.println("PWDTimer firmware — serial only, ESP32-DEVKITC-32D");
+#endif
+    Serial.flush();
 
     setup_gates();
-
-    // WiFi + UDP are best-effort: any failure is logged and ignored so the
-    // serial transport always remains available.
-    if (wifi_ap_begin()) {
-        udp_begin();
-    }
+    Serial.println("gates: ready");
+    Serial.flush();
 
     xTaskCreatePinnedToCore(stateMachineTask, "stateTask",
                             STATE_TASK_STACK, nullptr,
                             STATE_TASK_PRIO, nullptr, STATE_TASK_CORE);
+
+#ifdef PWDTIMER_ENABLE_WIFI
+    // Best-effort WiFi/UDP startup, deferred so it cannot block setup().
+    xTaskCreatePinnedToCore(wifiInitTask, "wifiInit",
+                            4096, nullptr, 1, nullptr, 0);
+#endif
 
     send_debug("ready");
 }

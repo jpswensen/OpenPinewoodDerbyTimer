@@ -7,11 +7,13 @@
 // Anything that goes wrong here is reported via send_debug() and the
 // firmware continues to run with serial-only comms.
 
-#include <Arduino.h>
-#include <WiFi.h>
-
 #include "wifi_ap.h"
 #include "comms.h"
+
+#ifdef PWDTIMER_ENABLE_WIFI
+
+#include <Arduino.h>
+#include <WiFi.h>
 
 namespace {
 constexpr const char *AP_SSID     = "PWDTimer";
@@ -45,3 +47,10 @@ bool wifi_ap_begin() {
 }
 
 bool wifi_ap_is_up() { return s_up; }
+
+#else  // PWDTIMER_ENABLE_WIFI
+
+bool wifi_ap_begin() { return false; }
+bool wifi_ap_is_up() { return false; }
+
+#endif  // PWDTIMER_ENABLE_WIFI

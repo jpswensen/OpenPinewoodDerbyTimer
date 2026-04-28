@@ -11,14 +11,16 @@
 // HardwareSerial TX synchronises internally.  No shared state between
 // the two transports beyond comms_inject_line(), which takes its own lock.
 
+#include "udp_comms.h"
+#include "comms.h"
+#include "wifi_ap.h"
+
+#ifdef PWDTIMER_ENABLE_WIFI
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <string.h>
-
-#include "udp_comms.h"
-#include "comms.h"
-#include "wifi_ap.h"
 
 namespace {
 WiFiUDP   s_rx;
@@ -95,3 +97,10 @@ void udp_broadcast_line(const char *line) {
     s_tx.write('\n');
     s_tx.endPacket();
 }
+
+#else  // PWDTIMER_ENABLE_WIFI
+
+bool udp_begin() { return false; }
+void udp_broadcast_line(const char * /*line*/) {}
+
+#endif  // PWDTIMER_ENABLE_WIFI
