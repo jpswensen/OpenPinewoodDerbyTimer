@@ -21,6 +21,48 @@ from pathlib import Path
 import uvicorn
 
 
+_ZOOM_JS = """
+(function () {
+    if (window.__pwdZoomInstalled) return;
+    window.__pwdZoomInstalled = true;
+
+    var ZOOM_KEY = 'pwdtimer_zoom';
+    var MIN_ZOOM = 0.5;
+    var MAX_ZOOM = 3.0;
+    var STEP = 0.1;
+
+    function applyZoom(z) {
+        z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(z * 100) / 100));
+        document.documentElement.style.zoom = z;
+        try { localStorage.setItem(ZOOM_KEY, z); } catch(e) {}
+        return z;
+    }
+
+    // Restore saved zoom level across sessions
+    try {
+        var saved = parseFloat(localStorage.getItem(ZOOM_KEY));
+        if (!isNaN(saved)) applyZoom(saved);
+    } catch(e) {}
+
+    document.addEventListener('keydown', function (e) {
+        if (!e.metaKey && !e.ctrlKey) return;
+        var current = parseFloat(document.documentElement.style.zoom || '1');
+        if (isNaN(current)) current = 1;
+        if (e.key === '=' || e.key === '+') {
+            e.preventDefault();
+            applyZoom(current + STEP);
+        } else if (e.key === '-') {
+            e.preventDefault();
+            applyZoom(current - STEP);
+        } else if (e.key === '0') {
+            e.preventDefault();
+            applyZoom(1);
+        }
+    }, true);
+})();
+"""
+
+
 class _WebViewApi:
     """Exposed to JavaScript as window.pywebview.api."""
 
@@ -190,6 +232,7 @@ def main() -> None:
                 min_size=(900, 600),
             )
             window_ref[0] = window
+            window.events.loaded += lambda: window.evaluate_js(_ZOOM_JS)
             webview.start()  # blocks until window is closed
 
     # Graceful shutdown
