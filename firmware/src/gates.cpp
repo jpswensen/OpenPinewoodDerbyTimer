@@ -148,9 +148,14 @@ static void IRAM_ATTR gatesCoreTask(void *) {
             if (pending == 0) state = FINISHED; // atomic 32-bit store
 
         } else {
-            // RESET or FINISHED: nothing to time.  Yield so other Core-0
-            // tasks (comms, state machine, WiFi) get CPU time.
-            taskYIELD();
+            // RESET or FINISHED: nothing to time.  Sleep for one tick so
+            // IDLE1, loop(), and any other lower-priority work on Core 1
+            // get CPU time.  taskYIELD() alone is NOT sufficient here:
+            // this task runs at configMAX_PRIORITIES-1, and yield only
+            // round-robins same-priority ready tasks — of which there are
+            // none — so IDLE1 would be starved and the Task Watchdog
+            // Timer would eventually reset the chip.
+            vTaskDelay(1);
         }
 
         prevLo = lo;
