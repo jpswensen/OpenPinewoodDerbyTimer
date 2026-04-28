@@ -8,15 +8,17 @@
 //
 // Both transports inject commands via comms_inject_line(); a small spinlock
 // protects the single-slot pending-command state so the two sources can
-// arrive on different tasks without racing.  Status frames are broadcast on
-// Serial and (when the AP is up) UDP from a single producer task, so TX
-// requires no additional locking.
+// arrive on different tasks without racing.  Serial TX is serialised through
+// s_serialMux so multi-task writes never interleave (IDF 5.x default UART TX
+// buffer is zero-sized / direct FIFO — without this lock, concurrent tasks
+// corrupt each other's output).
 
 #include <Arduino.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 #include "comms.h"
 #include "gates.h"
@@ -26,6 +28,10 @@
 
 static const int   COMMS_TASK_CORE = 0;   // same core as WiFi and stateMachineTask
 static const int   COMMS_TASK_PRIO = 5;
+
+// Serial TX mutex — created in setup_comms() before any task is started.
+// s_serialMux is null-safe: pre-task prints in setup() just call Serial directly.
+static SemaphoreHandle_t s_serialMux = nullptr;
 
 // RX line buffer for serial (single writer: commsCoreTask).
 static char        rxBuf[128];
@@ -90,6 +96,12 @@ void comms_inject_line(const char *line) {
     parse_line(line);
 }
 
+void serial_println(const char *msg) {
+    if (s_serialMux) xSemaphoreTake(s_serialMux, portMAX_DELAY);
+    Serial.println(msg);
+    if (s_serialMux) xSemaphoreGive(s_serialMux);
+}
+
 // ── Core-0 task: only job is to keep serial RX flowing ────────────────────
 
 static void commsCoreTask(void * /*pv*/) {
@@ -120,6 +132,11 @@ static void commsCoreTask(void * /*pv*/) {
 // ── Public API ────────────────────────────────────────────────────────────
 
 void setup_comms() {
+    s_serialMux = xSemaphoreCreateMutex();
+    // 4096-byte TX ring buffer — large enough to absorb a burst of status frames
+    // plus WiFi/debug prints without blocking or dropping bytes.  RAM is plentiful
+    // on the ESP32 DevKit so there's no reason to be stingy here.
+    Serial.setTxBufferSize(4096);
     Serial.begin(115200);
     xTaskCreatePinnedToCore(
         commsCoreTask,
@@ -143,7 +160,7 @@ void send_status(TimerState_t st, long startTime, long currentTime,
              endTimes[0], endTimes[1], endTimes[2], endTimes[3],
              endTimes[4], endTimes[5], endTimes[6], endTimes[7],
              gateSet ? 1 : 0);
-    Serial.println(buf);
+    serial_println(buf);
 #ifdef PWDTIMER_ENABLE_WIFI
     udp_broadcast_line(buf);
 #endif
@@ -162,6 +179,7 @@ RecvMessage_t poll_command(int *param) {
 }
 
 void send_debug(const char *msg) {
-    Serial.print("DEBUG: ");
-    Serial.println(msg);
+    char buf[160];
+    snprintf(buf, sizeof(buf), "DEBUG: %s", msg);
+    serial_println(buf);
 }

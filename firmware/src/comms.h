@@ -34,3 +34,8 @@ RecvMessage_t poll_command(int *param);
 void comms_inject_line(const char *line);
 
 void send_debug(const char *msg);
+
+// Thread-safe single-line Serial write.  All firmware code that prints to
+// Serial must use this (or send_debug / send_status) rather than calling
+// Serial.print* directly, so that multi-task writes never interleave.
+void serial_println(const char *msg);
