@@ -8,6 +8,7 @@ import { Table } from '../components/ui/Table'
 import { useToast } from '../components/ui/Toast'
 import { cn } from '../lib/cn'
 import { ApiError } from '../api/client'
+import { STORAGE_KEYS, readNumber } from '../lib/settings'
 
 import { listGroups } from '../api/endpoints/groups'
 import type { Racer } from '../api/endpoints/racers'
@@ -68,7 +69,6 @@ export function HeatsPage() {
 
   const [createRaceOpen, setCreateRaceOpen] = useState(false)
   const [raceDraftName, setRaceDraftName] = useState('')
-  const [raceDraftLanes, setRaceDraftLanes] = useState(4)
 
   const [dragOverHeatId, setDragOverHeatId] = useState<number | null>(null)
   const [dragOverLane, setDragOverLane] = useState<{ heatId: number; laneNumber: number } | null>(null)
@@ -233,7 +233,8 @@ export function HeatsPage() {
     }
 
     try {
-      await createRaceM.mutateAsync({ name, num_lanes: raceDraftLanes })
+      const laneCount = readNumber(STORAGE_KEYS.laneCount, 4, { min: 1, max: 8, integer: true })
+      await createRaceM.mutateAsync({ name, num_lanes: laneCount })
       setCreateRaceOpen(false)
       setRaceDraftName('')
     } catch {
@@ -342,26 +343,6 @@ export function HeatsPage() {
 
             {selectedRace ? (
               <div className="grid grid-cols-1 gap-2">
-                <div className="space-y-1">
-                  <label className="text-sm font-semibold">Lane count</label>
-                  <select
-                    value={selectedRace.num_lanes}
-                    onChange={(e) =>
-                      updateRaceM.mutate({ id: selectedRace.id, payload: { num_lanes: Number(e.target.value) } })
-                    }
-                    className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-800 dark:bg-slate-950"
-                  >
-                    {[4, 6, 8].map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="text-xs text-slate-600 dark:text-slate-300">
-                    Changing lane count affects the schedule; regenerate heats after changing.
-                  </div>
-                </div>
-
                 <div className="space-y-1">
                   <label className="text-sm font-semibold">Schedule group (optional)</label>
                   <select

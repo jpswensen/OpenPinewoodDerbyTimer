@@ -7,7 +7,7 @@ import { useConfirm } from '../components/ui/ConfirmDialog'
 import { useToast } from '../components/ui/Toast'
 
 import { ApiError } from '../api/client'
-import { resetTimer, setTimerLanes } from '../api/endpoints/connection'
+import { resetTimer } from '../api/endpoints/connection'
 import type { Heat, HeatUpdateRequest, Race } from '../api/endpoints/races'
 import { listHeats, listRaces, updateHeat } from '../api/endpoints/races'
 import type { Racer } from '../api/endpoints/racers'
@@ -491,16 +491,6 @@ export function RacePage() {
     },
   })
 
-  async function doSetLanes(n: number) {
-    try {
-      await setTimerLanes(n)
-      toast({ variant: 'success', title: `Set lanes: ${n}` })
-    } catch (e) {
-      const msg = e instanceof ApiError ? e.message : 'Failed to set lanes'
-      toast({ variant: 'error', title: 'Set lanes failed', description: msg })
-    }
-  }
-
   const stateMeta = mapStateLabel(raceState?.state_name)
   const elapsedUs = (() => {
     const base = elapsedUsFromRaceState(raceState)
@@ -649,20 +639,6 @@ export function RacePage() {
             >
               Reset Timer
             </Button>
-          </div>
-
-          <div className="mt-4 text-sm font-semibold">Lanes</div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {[4, 6, 8].map((n) => (
-              <Button
-                key={n}
-                variant={n === numLanes ? 'primary' : 'secondary'}
-                onClick={() => doSetLanes(n)}
-                disabled={timerConn?.connection_state !== 'connected'}
-              >
-                {n}
-              </Button>
-            ))}
           </div>
 
           <div className="mt-4 space-y-2">
