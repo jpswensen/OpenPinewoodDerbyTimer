@@ -35,9 +35,9 @@ A modern, full-stack race management system for Pinewood Derby events. PWDTimer 
                    │ Serial (USB) or UDP (SoftAP)
                    ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                    ESP32 Firmware                                 │
-│  FreeRTOS: Core 1 (timing ISRs) │ Core 0 (comms + OTA)          │
-│  HAL → GPIO interrupts, μs precision                             │
+│                    ESP32 Firmware (DoIT board)                    │
+│  FreeRTOS: Core 1 (GPIO polling, timing) │ Core 0 (state+comms) │
+│  CCOUNT cycle-counter for sub-μs lane timing precision           │
 │  Protocol: $state,startTime,currentTime,numLanes,t0,...*         │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -122,18 +122,20 @@ PWDTimer/
 │   │       ├── pdf_generator.py        # PDF results export
 │   │       ├── certificate_generator.py# Decorative certificates
 │   │       ├── serial_connection.py    # Serial port handling
-│   │       ├── tcp_connection.py       # TCP socket handling
+│   │       ├── udp_connection.py       # UDP socket handling (WiFi mode)
 │   │       └── mdns_discovery.py       # mDNS device discovery
-│   ├── tests/                  # pytest test suite (253+ tests, 90%+ coverage)
+│   ├── tests/                  # pytest test suite
 │   ├── Dockerfile              # Backend container image
 │   └── requirements.txt
 ├── frontend/                   # React + TypeScript application
 │   ├── src/
-│   │   ├── pages/              # 7 main page components
+│   │   ├── pages/              # 8 main page components
 │   │   ├── components/         # Reusable UI components
-│   │   ├── hooks/              # Custom React hooks (WebSocket, etc.)
+│   │   ├── hooks/              # Custom React hooks (useWebSocket, etc.)
 │   │   ├── context/            # React context providers (theme)
-│   │   ├── api/                # Typed API client functions
+│   │   ├── providers/          # App-level provider wrappers
+│   │   ├── routes/             # Route definitions (AppRoutes)
+│   │   ├── api/                # Typed API client + endpoint functions
 │   │   └── lib/                # Utilities (settings, helpers)
 │   ├── Dockerfile              # Frontend container image (nginx)
 │   ├── nginx.conf              # Production nginx configuration
@@ -141,16 +143,13 @@ PWDTimer/
 │   └── vite.config.ts
 ├── firmware/                   # ESP32 PlatformIO project
 │   ├── src/
-│   │   ├── hal/                # Hardware abstraction layer
-│   │   ├── comm/               # Communication protocol
-│   │   ├── app/                # Application controller
-│   │   ├── config/             # NVS persistent configuration
-│   │   └── main.cpp            # Firmware entry point
-│   ├── test/                   # Native unit tests (78+ tests)
+│   │   ├── main.cpp            # FreeRTOS task setup, state machine
+│   │   ├── gates.cpp/h         # Core 1 GPIO polling loop, CCOUNT timing
+│   │   ├── comms.cpp/h         # Serial output ($...* protocol frames)
+│   │   ├── state.cpp/h         # TimerState enum and types
+│   │   ├── udp_comms.cpp/h     # UDP transport (optional WiFi mode)
+│   │   └── wifi_ap.cpp/h       # SoftAP setup
 │   └── platformio.ini
-├── deploy/                     # Deployment configuration files
-│   ├── pwdtimer.service        # systemd unit file (Linux)
-│   └── com.pwdtimer.server.plist # launchd plist (macOS)
 ├── docs/                       # Documentation
 ├── docker-compose.yml          # Single-command Docker deployment
 ├── .env.example                # Environment variable template
@@ -172,9 +171,6 @@ PWDTimer/
 | [API Reference](docs/api-reference.md) | Complete REST API and WebSocket endpoint documentation |
 | [Firmware Setup](docs/firmware-setup.md) | Flashing instructions, hardware connections, pin mappings |
 | [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
-| [Python Implementation Review](docs/01_python_implementation_review.md) | Analysis of the legacy PyQt5 application |
-| [Firmware/Hardware Review](docs/02_firmware_hardware_review.md) | Analysis of legacy firmware and board designs |
-| [Code Review Findings](docs/03_code_review_findings.md) | Issues found and fixed during quality review |
 
 ### Lane Count
 
@@ -225,17 +221,15 @@ npm run lint                    # ESLint
 npm run build                   # TypeScript + production build check
 ```
 
-### Firmware (native tests, no hardware required)
+### Firmware
+
+The firmware is built and flashed with PlatformIO — there are no standalone unit tests. To verify the firmware build:
 
 ```bash
 cd firmware
-# With PlatformIO:
-pio test -e native
-
-# Or with system g++/clang++:
-g++ -std=c++17 -Isrc -Ilib/unity/src \
-  test/test_mock_hal.cpp src/hal/mock_hal.cpp lib/unity/src/unity.c \
-  -o test_hal && ./test_hal
+pio run            # compile only
+pio run -t upload  # compile and flash to connected board
+pio device monitor # open serial monitor (Ctrl+C to exit)
 ```
 
 ## Hardware
