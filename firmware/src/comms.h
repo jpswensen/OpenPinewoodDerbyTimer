@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <stdint.h>
 #include "state.h"
 
 enum RecvMessage_t {
@@ -21,8 +22,8 @@ void setup_comms();
 // that only look at the first 12 fields remain unaffected.
 //
 // The frame is written to Serial *and*, when the AP is up, broadcast over UDP.
-void send_status(TimerState_t st, long startTime, long currentTime,
-                 int numLanes, const long *endTimes, bool gateSet);
+void send_status(TimerState_t st, int64_t startTime, int64_t currentTime,
+                 int numLanes, const int64_t *endTimes, bool gateSet);
 
 // Drain any pending host command. Returns the parsed type and, for
 // SET_LANES, sets *param to the requested lane count.

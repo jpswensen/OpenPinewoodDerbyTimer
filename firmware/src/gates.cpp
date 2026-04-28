@@ -68,7 +68,7 @@ static uint32_t s_startGateMask = 0;    // always bank 0
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 
 // ── Shared timing state — every access protected by s_mux ─────────────────
-static volatile long     s_startUs              = -1; // micros() at start; -1 = not started
+static volatile int64_t  s_startUs              = -1; // micros() at start; -1 = not started
 static volatile uint32_t s_startCycles          = 0;  // CCOUNT at start
 static volatile uint32_t s_endCycles[MAX_LANES] = {}; // CCOUNT at each lane finish
 static volatile bool     s_laneFinished[MAX_LANES] = {};
@@ -112,7 +112,7 @@ static void IRAM_ATTR gatesCoreTask(void *) {
             // FALLING edge on start-gate pin (active-low with pull-up).
             if ((prevLo & s_startGateMask) && !(lo & s_startGateMask)) {
                 portENTER_CRITICAL(&s_mux);
-                s_startUs     = (long)micros();
+                s_startUs     = (int64_t)micros();
                 s_startCycles = cycles;
                 for (int i = 0; i < MAX_LANES; ++i) {
                     s_endCycles[i]    = 0;
@@ -205,9 +205,9 @@ bool is_starting_gate_set() {
     return digitalRead(STARTGATE_PIN) == HIGH;
 }
 
-void read_gates(long &startOut, long *endTimesOut) {
+void read_gates(int64_t &startOut, int64_t *endTimesOut) {
     // Take an atomic cross-core snapshot of all timing data.
-    long     snapStart;
+    int64_t  snapStart;
     uint32_t snapStartCyc;
     uint32_t snapEnd[MAX_LANES];
     bool     snapFin[MAX_LANES];
@@ -227,7 +227,7 @@ void read_gates(long &startOut, long *endTimesOut) {
             // Cycle delta -> microsecond offset added to the absolute start
             // timestamp, giving ~4 ns relative resolution between lanes.
             const uint32_t dt = snapEnd[i] - snapStartCyc;
-            endTimesOut[i] = snapStart + (long)(dt / CPU_FREQ_MHZ);
+            endTimesOut[i] = snapStart + (int64_t)(dt / CPU_FREQ_MHZ);
         } else {
             endTimesOut[i] = 0;
         }

@@ -131,17 +131,19 @@ void setup_comms() {
         COMMS_TASK_CORE);
 }
 
-void send_status(TimerState_t st, long startTime, long currentTime,
-                 int numLanes, const long *endTimes, bool gateSet) {
+void send_status(TimerState_t st, int64_t startTime, int64_t currentTime,
+                 int numLanes, const int64_t *endTimes, bool gateSet) {
     // Always emit 8 lane fields (zero-padded for inactive lanes) followed by
     // a gateSet flag (1=armed/set, 0=open/released) for host UI use.
     // Old parsers that only read the first 12 comma-separated fields are unaffected.
     char buf[256];
     snprintf(buf, sizeof(buf),
-             "$%d,%ld,%ld,%d,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%d*",
-             (int)st, startTime, currentTime, numLanes,
-             endTimes[0], endTimes[1], endTimes[2], endTimes[3],
-             endTimes[4], endTimes[5], endTimes[6], endTimes[7],
+             "$%d,%lld,%lld,%d,%lld,%lld,%lld,%lld,%lld,%lld,%lld,%lld,%d*",
+             (int)st, (long long)startTime, (long long)currentTime, numLanes,
+             (long long)endTimes[0], (long long)endTimes[1],
+             (long long)endTimes[2], (long long)endTimes[3],
+             (long long)endTimes[4], (long long)endTimes[5],
+             (long long)endTimes[6], (long long)endTimes[7],
              gateSet ? 1 : 0);
     Serial.println(buf);
 #ifdef PWDTIMER_ENABLE_WIFI

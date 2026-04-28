@@ -14,4 +14,4 @@ int  get_num_gates();
 void set_num_gates(int n);
 void reset_gates();
 bool is_starting_gate_set();
-void read_gates(long &startOut, long *endTimesOut);
+void read_gates(int64_t &startOut, int64_t *endTimesOut);

@@ -49,9 +49,9 @@ static void stateMachineTask(void *) {
     uint32_t lastStatusMs = 0;
 
     for (;;) {
-        long     startTime  = -1;
-        long     endTimes[MAX_LANES] = {};
-        long     currentTime = (long)micros();
+        int64_t  startTime  = -1;
+        int64_t  endTimes[MAX_LANES] = {};
+        int64_t  currentTime = (int64_t)micros();
         int      numLanes    = get_num_gates();
 
         read_gates(startTime, endTimes);
