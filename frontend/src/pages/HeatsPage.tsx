@@ -572,21 +572,6 @@ export function HeatsPage() {
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Lane count</label>
-            <select
-              value={raceDraftLanes}
-              onChange={(e) => setRaceDraftLanes(Number(e.target.value))}
-              className="w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-800 dark:bg-slate-950"
-            >
-              {[4, 6, 8].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="flex items-center justify-end gap-2">
             <Button variant="ghost" onClick={() => setCreateRaceOpen(false)}>
               Cancel
