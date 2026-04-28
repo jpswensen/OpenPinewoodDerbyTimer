@@ -14,7 +14,7 @@ import { listGroups } from '../api/endpoints/groups'
 import type { Racer } from '../api/endpoints/racers'
 import { listRacers } from '../api/endpoints/racers'
 import type { Heat, Race } from '../api/endpoints/races'
-import { createRace, deleteHeat, deleteRace, generateHeats, listHeats, listRaces, reorderHeats, repeatHeat, updateHeat, updateRace } from '../api/endpoints/races'
+import { createRace, deleteHeat, deleteRace, generateHeats, listHeats, listRaces, reorderHeats, repeatHeat, updateHeat } from '../api/endpoints/races'
 
 type DragData =
   | { kind: 'heat-row'; heatId: number }
@@ -135,17 +135,6 @@ export function HeatsPage() {
     onError: (e) => {
       const msg = e instanceof ApiError ? e.message : 'Failed to create race'
       toast({ variant: 'error', title: 'Create race failed', description: msg })
-    },
-  })
-
-  const updateRaceM = useMutation({
-    mutationFn: (args: { id: number; payload: Partial<Race> & { num_lanes?: number } }) => updateRace(args.id, args.payload),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['races'] })
-    },
-    onError: (e) => {
-      const msg = e instanceof ApiError ? e.message : 'Failed to update race'
-      toast({ variant: 'error', title: 'Update race failed', description: msg })
     },
   })
 
