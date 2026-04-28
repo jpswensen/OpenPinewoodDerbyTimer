@@ -9,7 +9,7 @@ A modern, full-stack race management system for Pinewood Derby events. PWDTimer 
 | **Participant Management** | Organize racers into groups (Tiger Cubs, Wolf, Bear, Webelos, etc.) with CSV import/export |
 | **Automatic Heat Scheduling** | Fair round-robin lane rotation ensuring every racer competes in every lane |
 | **Real-time Race Display** | Live timing via WebSocket with place indicators as cars finish |
-| **Multiple Connections** | USB Serial and WiFi (TCP + mDNS) support for the timing hardware |
+| **Multiple Connections** | USB serial, TCP (WiFi/mDNS), and direct UDP-over-SoftAP support for the timing hardware |
 | **Results & Rankings** | Automatic average/best time calculation, overall and per-group standings |
 | **PDF Export** | Professional race results documents (letter/A4, portrait/landscape) |
 | **Award Certificates** | Decorative winner and participation certificates with batch generation |
@@ -32,7 +32,7 @@ A modern, full-stack race management system for Pinewood Derby events. PWDTimer 
 │  Routers: races, racers, groups, connection, certificates, ws    │
 │  Services: heat_scheduler, connection_manager, timer_protocol    │
 └──────────────────┬───────────────────────────────────────────────┘
-                   │ Serial (USB) or TCP (WiFi)
+                   │ Serial (USB), TCP (WiFi), or UDP (SoftAP)
                    ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                    ESP32 Firmware                                 │
@@ -174,6 +174,30 @@ PWDTimer/
 | [Python Implementation Review](docs/01_python_implementation_review.md) | Analysis of the legacy PyQt5 application |
 | [Firmware/Hardware Review](docs/02_firmware_hardware_review.md) | Analysis of legacy firmware and board designs |
 | [Code Review Findings](docs/03_code_review_findings.md) | Issues found and fixed during quality review |
+
+### Connecting over Wi-Fi (UDP)
+
+The firmware brings up a SoftAP **simultaneously** with the existing serial
+transport — both stay live at all times, so the operator never loses the
+serial fallback.
+
+* **SSID:** `PWDTimer`
+* **Password:** `pinewood2025` (WPA2)
+* **Device IP:** `192.168.4.1`
+* **Ports:** UDP `9100` (host → device commands), UDP `9101` (device → host
+  status broadcasts)
+
+Steps:
+
+1. Flash the firmware (`pio run -t upload` from `firmware/`).
+2. On the host computer, join the `PWDTimer` Wi-Fi network. The host has
+   no internet while joined — the UI is fully self-contained and works
+   offline.
+3. In **Settings → Connection → Wi-Fi (UDP)**, click **Connect**. The
+   defaults match the firmware out of the box.
+
+Status frames are emitted on serial and UDP simultaneously, so it is safe
+to keep a USB cable plugged in for monitoring while the UI talks UDP.
 
 ## Running Tests
 

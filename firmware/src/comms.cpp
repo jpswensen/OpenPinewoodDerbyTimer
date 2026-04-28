@@ -1,32 +1,39 @@
-// comms.cpp — serial-only host communication.
+// comms.cpp — host communication (serial + UDP).
 //
-// Runs on Core 0, sharing it with stateMachineTask and (when WiFi is enabled)
-// the ESP-IDF WiFi/TCP-IP protocol tasks, which are pinned to Core 0 by
-// default (CONFIG_ESP32_WIFI_TASK_CORE_ID=0).  Core 1 is reserved for the
-// tight timing loop in gatesCoreTask plus the suspended Arduino loop().
+// Runs on Core 0, sharing it with stateMachineTask, the udpRxTask, and (when
+// WiFi is enabled) the ESP-IDF WiFi/TCP-IP protocol tasks, all of which are
+// pinned to Core 0 by default (CONFIG_ESP32_WIFI_TASK_CORE_ID=0).  Core 1 is
+// reserved for the tight timing loop in gatesCoreTask plus the suspended
+// Arduino loop().
 //
-// commsCoreTask is the single writer to the RX line buffer; stateMachineTask
-// is the single reader via poll_command().  HardwareSerial TX is internally
-// synchronised so send_status() is safe to call from any Core-0 task.
+// Both transports inject commands via comms_inject_line(); a small spinlock
+// protects the single-slot pending-command state so the two sources can
+// arrive on different tasks without racing.  Status frames are broadcast on
+// Serial and (when the AP is up) UDP from a single producer task, so TX
+// requires no additional locking.
 
 #include <Arduino.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include "freertos/FreeRTOS.h"
 
 #include "comms.h"
 #include "gates.h"
+#include "udp_comms.h"
 
 static const int   COMMS_TASK_CORE = 0;   // same core as WiFi and stateMachineTask
 static const int   COMMS_TASK_PRIO = 5;
 
-// RX line buffer (single reader, drained in loop()).
+// RX line buffer for serial (single writer: commsCoreTask).
 static char        rxBuf[128];
 static size_t      rxLen = 0;
 
-// One pending command, set when a complete line is parsed.
-static volatile RecvMessage_t pendingCmd   = UNDEFINED_MSG;
-static volatile int           pendingParam = 0;
+// One pending command, written under s_cmdMux from any transport,
+// drained by stateMachineTask via poll_command().
+static portMUX_TYPE s_cmdMux = portMUX_INITIALIZER_UNLOCKED;
+static RecvMessage_t pendingCmd   = UNDEFINED_MSG;
+static int           pendingParam = 0;
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -40,41 +47,48 @@ static bool starts_with_ci(const char *s, const char *prefix) {
     return true;
 }
 
+static void set_pending(RecvMessage_t cmd, int param) {
+    portENTER_CRITICAL(&s_cmdMux);
+    pendingCmd   = cmd;
+    pendingParam = param;
+    portEXIT_CRITICAL(&s_cmdMux);
+}
+
 static void parse_line(const char *line) {
-    // Skip leading whitespace.
     while (*line && isspace((unsigned char)*line)) ++line;
 
     if (starts_with_ci(line, "RESET")) {
-        pendingCmd   = RESET_MSG;
-        pendingParam = 0;
+        set_pending(RESET_MSG, 0);
         return;
     }
     if (starts_with_ci(line, "ARM")) {
         // Legacy firmware auto-arms when the start gate is closed; we accept
         // ARM as a no-op for forward compatibility with the new backend.
-        pendingCmd   = ARM_MSG;
-        pendingParam = 0;
+        set_pending(ARM_MSG, 0);
         return;
     }
     if (starts_with_ci(line, "LANES,") || starts_with_ci(line, "LANES ")) {
         int n = atoi(line + 6);
         if (n >= 1 && n <= MAX_LANES) {
-            pendingCmd   = SET_LANES_MSG;
-            pendingParam = n;
+            set_pending(SET_LANES_MSG, n);
         }
         return;
     }
     if (starts_with_ci(line, "SET_LANES:")) {
         int n = atoi(line + 10);
         if (n >= 1 && n <= MAX_LANES) {
-            pendingCmd   = SET_LANES_MSG;
-            pendingParam = n;
+            set_pending(SET_LANES_MSG, n);
         }
         return;
     }
 }
 
-// ── Core-0 task: only job is to keep RX flowing ───────────────────────────
+void comms_inject_line(const char *line) {
+    if (line == nullptr) return;
+    parse_line(line);
+}
+
+// ── Core-0 task: only job is to keep serial RX flowing ────────────────────
 
 static void commsCoreTask(void * /*pv*/) {
     for (;;) {
@@ -85,7 +99,7 @@ static void commsCoreTask(void * /*pv*/) {
             if (ch == '\n' || ch == '\r') {
                 if (rxLen > 0) {
                     rxBuf[rxLen] = '\0';
-                    parse_line(rxBuf);
+                    comms_inject_line(rxBuf);
                     rxLen = 0;
                 }
                 continue;
@@ -128,16 +142,18 @@ void send_status(TimerState_t st, long startTime, long currentTime,
              endTimes[4], endTimes[5], endTimes[6], endTimes[7],
              gateSet ? 1 : 0);
     Serial.println(buf);
+    udp_broadcast_line(buf);
 }
 
 RecvMessage_t poll_command(int *param) {
+    portENTER_CRITICAL(&s_cmdMux);
     RecvMessage_t cmd = pendingCmd;
-    if (cmd == UNDEFINED_MSG) {
-        return UNDEFINED_MSG;
-    }
-    if (param) *param = pendingParam;
+    int           p   = pendingParam;
     pendingCmd   = UNDEFINED_MSG;
     pendingParam = 0;
+    portEXIT_CRITICAL(&s_cmdMux);
+    if (cmd == UNDEFINED_MSG) return UNDEFINED_MSG;
+    if (param) *param = p;
     return cmd;
 }
 

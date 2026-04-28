@@ -46,11 +46,15 @@ async def discover_mdns(timeout_seconds: float = 1.5) -> dict:
 
 
 class ConnectRequest(BaseModel):
-    mode: str  # serial|tcp
+    mode: str  # serial|tcp|udp
     serial_port: str | None = None
     baudrate: int = 115200
     host: str | None = None
     port: int = 8080
+    # UDP-specific (defaults match the firmware's SoftAP + UDP ports)
+    udp_host: str = "192.168.4.1"
+    udp_cmd_port: int = 9100
+    udp_status_port: int = 9101
     auto_reconnect: bool = True
 
 
@@ -72,7 +76,16 @@ async def connect(payload: ConnectRequest, request: Request) -> dict:
         await mgr.connect_tcp(host=payload.host, port=payload.port, auto_reconnect=payload.auto_reconnect)
         return mgr.get_status().to_dict()
 
-    raise HTTPException(status_code=400, detail="mode must be 'serial' or 'tcp'")
+    if payload.mode == "udp":
+        await mgr.connect_udp(
+            host=payload.udp_host,
+            cmd_port=payload.udp_cmd_port,
+            status_port=payload.udp_status_port,
+            auto_reconnect=payload.auto_reconnect,
+        )
+        return mgr.get_status().to_dict()
+
+    raise HTTPException(status_code=400, detail="mode must be 'serial', 'tcp', or 'udp'")
 
 
 @router.post("/disconnect")

@@ -26,6 +26,8 @@
 #include "state.h"
 #include "gates.h"
 #include "comms.h"
+#include "wifi_ap.h"
+#include "udp_comms.h"
 
 static const uint32_t RACE_STATUS_INTERVAL_MS = 100;   // 10 Hz during SET / IN_RACE
 static const uint32_t IDLE_STATUS_INTERVAL_MS = 1000;  // 1  Hz otherwise
@@ -116,9 +118,15 @@ void setup() {
     setup_comms();
     delay(200);
     Serial.println();
-    Serial.println("PWDTimer firmware — serial only, ESP32-DEVKITC-32D");
+    Serial.println("PWDTimer firmware — serial + UDP, ESP32-DEVKITC-32D");
 
     setup_gates();
+
+    // WiFi + UDP are best-effort: any failure is logged and ignored so the
+    // serial transport always remains available.
+    if (wifi_ap_begin()) {
+        udp_begin();
+    }
 
     xTaskCreatePinnedToCore(stateMachineTask, "stateTask",
                             STATE_TASK_STACK, nullptr,
@@ -128,8 +136,8 @@ void setup() {
 }
 
 void loop() {
-    // All application work is handled in stateMachineTask (Core 1) and
-    // gatesCoreTask (Core 0).  Suspend this task permanently rather than
+    // All application work is handled in stateMachineTask (Core 0) and
+    // gatesCoreTask (Core 1).  Suspend this task permanently rather than
     // busy-spinning through an empty Arduino loop.
     vTaskSuspend(nullptr);
 }

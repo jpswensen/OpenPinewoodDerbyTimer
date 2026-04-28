@@ -4,6 +4,9 @@ export const STORAGE_KEYS = {
   serialBaudrate: 'pwdtimer-serial-baudrate',
   tcpHost: 'pwdtimer-tcp-host',
   tcpPort: 'pwdtimer-tcp-port',
+  udpHost: 'pwdtimer-udp-host',
+  udpCmdPort: 'pwdtimer-udp-cmd-port',
+  udpStatusPort: 'pwdtimer-udp-status-port',
   autoReconnect: 'pwdtimer-auto-reconnect',
 
   laneCount: 'pwdtimer-lane-count',

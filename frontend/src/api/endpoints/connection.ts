@@ -11,7 +11,7 @@ export type TimerStatus = {
 
 export type ConnectionStatus = {
   connection_state: 'disconnected' | 'connecting' | 'connected'
-  mode: 'serial' | 'tcp' | null
+  mode: 'serial' | 'tcp' | 'udp' | null
   target: string | null
   last_message_at: string | null
   last_error: string | null
@@ -67,6 +67,13 @@ export type ConnectRequest =
       mode: 'tcp'
       host: string
       port?: number
+      auto_reconnect?: boolean
+    }
+  | {
+      mode: 'udp'
+      udp_host?: string
+      udp_cmd_port?: number
+      udp_status_port?: number
       auto_reconnect?: boolean
     }
 

@@ -1,4 +1,4 @@
-// comms.h — serial-only host communication.
+// comms.h — host communication (serial + optional UDP).
 
 #pragma once
 
@@ -19,11 +19,18 @@ void setup_comms();
 // Always eight lane fields (zero-padded) plus a trailing gateSet field (1=set/armed, 0=open).
 // The gateSet field is appended after the eight lane fields so old parsers
 // that only look at the first 12 fields remain unaffected.
+//
+// The frame is written to Serial *and*, when the AP is up, broadcast over UDP.
 void send_status(TimerState_t st, long startTime, long currentTime,
                  int numLanes, const long *endTimes, bool gateSet);
 
 // Drain any pending host command. Returns the parsed type and, for
 // SET_LANES, sets *param to the requested lane count.
 RecvMessage_t poll_command(int *param);
+
+// Inject a single complete command line (no trailing newline) from any
+// transport.  Thread-safe: serial and UDP RX paths share a lock so the
+// pending-command slot is updated atomically.
+void comms_inject_line(const char *line);
 
 void send_debug(const char *msg);

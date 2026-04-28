@@ -72,6 +72,7 @@ class ConnectionManager:
 
         self._tcp_dialer = tcp_dialer
         self._serial_opener = serial_opener
+        self._udp_opener = None
 
         self._buffer = b""
         self._writer = None
@@ -109,6 +110,38 @@ class ConnectionManager:
             self._status.connection_state = "connecting"
             self._status.mode = "tcp"
             self._status.target = f"{host}:{port}"
+            self._status.last_error = None
+            self._stop_event.clear()
+            self._runner_task = asyncio.create_task(self._runner())
+
+        await self._publish_connection_status()
+
+    async def connect_udp(
+        self,
+        *,
+        host: str = "192.168.4.1",
+        cmd_port: int = 9100,
+        status_port: int = 9101,
+        auto_reconnect: bool = True,
+    ) -> None:
+        """Talk to the timer over UDP — listen for status broadcasts on
+        ``status_port`` (0.0.0.0) and send commands to (``host``, ``cmd_port``).
+
+        ``host`` defaults to the firmware's SoftAP IP so the operator only
+        needs to join the ``PWDTimer`` access point — no other configuration.
+        """
+        async with self._lock:
+            await self._stop_runner_locked()
+            self._auto_reconnect = auto_reconnect
+            self._config = {
+                "mode": "udp",
+                "host": host,
+                "cmd_port": int(cmd_port),
+                "status_port": int(status_port),
+            }
+            self._status.connection_state = "connecting"
+            self._status.mode = "udp"
+            self._status.target = f"{host}:{cmd_port}"
             self._status.last_error = None
             self._stop_event.clear()
             self._runner_task = asyncio.create_task(self._runner())
@@ -312,6 +345,15 @@ class ConnectionManager:
 
             dialer = self._tcp_dialer or open_tcp_connection
             return await dialer(cfg["host"], int(cfg["port"]))
+        if mode == "udp":
+            from app.services.udp_connection import open_udp_connection
+
+            opener = self._udp_opener or open_udp_connection
+            return await opener(
+                cfg["host"],
+                cmd_port=int(cfg.get("cmd_port", 9100)),
+                status_port=int(cfg.get("status_port", 9101)),
+            )
         if mode == "serial":
             from app.services.serial_connection import open_serial_connection
 

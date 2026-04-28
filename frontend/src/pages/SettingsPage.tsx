@@ -24,7 +24,7 @@ import { STORAGE_KEYS, clampNumber, readBool, readNumber, readString, writeValue
 import { FEATURES } from '../lib/features'
 import { useWebSocket } from '../hooks/useWebSocket'
 
-type ConnMode = 'serial' | 'tcp'
+type ConnMode = 'serial' | 'tcp' | 'udp'
 
 function statusPill(status: ConnectionStatus['connection_state'] | undefined) {
   const base = 'inline-flex rounded-full px-3 py-1 text-xs font-semibold'
@@ -43,12 +43,17 @@ export function SettingsPage() {
     // previously stored preference so users aren't stranded on a hidden tab.
     if (!FEATURES.wifi) return 'serial'
     const v = readString(STORAGE_KEYS.connectionMode, 'tcp')
-    return v === 'serial' ? 'serial' : 'tcp'
+    if (v === 'serial') return 'serial'
+    if (v === 'udp') return 'udp'
+    return 'tcp'
   })
   const [serialPort, setSerialPort] = useState(() => readString(STORAGE_KEYS.serialPort, ''))
   const [baudrate, setBaudrate] = useState(() => readNumber(STORAGE_KEYS.serialBaudrate, 115200, { min: 1200, max: 921600, integer: true }))
   const [tcpHost, setTcpHost] = useState(() => readString(STORAGE_KEYS.tcpHost, 'pwdtimer.local'))
   const [tcpPort, setTcpPort] = useState(() => readNumber(STORAGE_KEYS.tcpPort, 8080, { min: 1, max: 65535, integer: true }))
+  const [udpHost, setUdpHost] = useState(() => readString(STORAGE_KEYS.udpHost, '192.168.4.1'))
+  const [udpCmdPort, setUdpCmdPort] = useState(() => readNumber(STORAGE_KEYS.udpCmdPort, 9100, { min: 1, max: 65535, integer: true }))
+  const [udpStatusPort, setUdpStatusPort] = useState(() => readNumber(STORAGE_KEYS.udpStatusPort, 9101, { min: 1, max: 65535, integer: true }))
   const [autoReconnect, setAutoReconnect] = useState(() => readBool(STORAGE_KEYS.autoReconnect, true))
 
   const [laneCount, setLaneCount] = useState(() => readNumber(STORAGE_KEYS.laneCount, 4, { min: 1, max: 8, integer: true }))
@@ -89,6 +94,16 @@ export function SettingsPage() {
         const port = serialPort.trim()
         if (!port) throw new ApiError('Select a serial port first', 400, null)
         return connectTimer({ mode: 'serial', serial_port: port, baudrate, auto_reconnect: autoReconnect })
+      }
+      if (connMode === 'udp') {
+        const host = udpHost.trim() || '192.168.4.1'
+        return connectTimer({
+          mode: 'udp',
+          udp_host: host,
+          udp_cmd_port: udpCmdPort,
+          udp_status_port: udpStatusPort,
+          auto_reconnect: autoReconnect,
+        })
       }
       const host = tcpHost.trim()
       if (!host) throw new ApiError('Enter a host first', 400, null)
@@ -201,6 +216,23 @@ export function SettingsPage() {
     writeValue(STORAGE_KEYS.tcpPort, v)
   }
 
+  function storeUdpHost(next: string) {
+    setUdpHost(next)
+    writeValue(STORAGE_KEYS.udpHost, next)
+  }
+
+  function storeUdpCmdPort(next: number) {
+    const v = Math.trunc(clampNumber(next, 1, 65535))
+    setUdpCmdPort(v)
+    writeValue(STORAGE_KEYS.udpCmdPort, v)
+  }
+
+  function storeUdpStatusPort(next: number) {
+    const v = Math.trunc(clampNumber(next, 1, 65535))
+    setUdpStatusPort(v)
+    writeValue(STORAGE_KEYS.udpStatusPort, v)
+  }
+
   function storeAutoReconnect(next: boolean) {
     setAutoReconnect(next)
     writeValue(STORAGE_KEYS.autoReconnect, next)
@@ -302,6 +334,11 @@ export function SettingsPage() {
                   Network
                 </Button>
               ) : null}
+              {FEATURES.wifi ? (
+                <Button variant={connMode === 'udp' ? 'primary' : 'secondary'} onClick={() => storeConnMode('udp')}>
+                  Wi-Fi (UDP)
+                </Button>
+              ) : null}
             </div>
 
             <label className="mt-3 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
@@ -345,6 +382,57 @@ export function SettingsPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          ) : connMode === 'udp' ? (
+            <div>
+              <div className="text-sm font-semibold">Wi-Fi (UDP)</div>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Join the timer's <code className="font-mono">PWDTimer</code> Wi-Fi access point on the host
+                computer, then connect. The backend listens for status broadcasts on UDP{' '}
+                <code className="font-mono">{udpStatusPort}</code> and sends commands to{' '}
+                <code className="font-mono">{udpHost}:{udpCmdPort}</code>.
+              </p>
+              <div className="mt-2 grid gap-2">
+                <label className="text-sm text-slate-700 dark:text-slate-200">
+                  Device IP
+                  <input
+                    className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm dark:border-slate-800 dark:bg-slate-950"
+                    value={udpHost}
+                    onChange={(e) => storeUdpHost(e.target.value)}
+                    placeholder="192.168.4.1"
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-sm text-slate-700 dark:text-slate-200">
+                    Command port
+                    <input
+                      className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm dark:border-slate-800 dark:bg-slate-950"
+                      value={udpCmdPort}
+                      onChange={(e) => storeUdpCmdPort(Number(e.target.value))}
+                      inputMode="numeric"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-700 dark:text-slate-200">
+                    Status port
+                    <input
+                      className="mt-1 w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm dark:border-slate-800 dark:bg-slate-950"
+                      value={udpStatusPort}
+                      onChange={(e) => storeUdpStatusPort(Number(e.target.value))}
+                      inputMode="numeric"
+                    />
+                  </label>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    storeUdpHost('192.168.4.1')
+                    storeUdpCmdPort(9100)
+                    storeUdpStatusPort(9101)
+                  }}
+                >
+                  Reset to firmware defaults
+                </Button>
               </div>
             </div>
           ) : (
