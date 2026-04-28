@@ -165,7 +165,25 @@ def main() -> None:
         default=0,
         help="Port to run on (0 = auto-detect a free port)",
     )
+    parser.add_argument(
+        "--db",
+        metavar="PATH",
+        help=(
+            "Path to the SQLite database file to use. "
+            "Useful for keeping separate databases per congregation/group. "
+            "Example: --db ~/races/congregation1.db"
+        ),
+    )
     args = parser.parse_args()
+
+    # Set the DB path before the server imports database.py so the engine is
+    # created with the right URL.  PWDTIMER_DB_URL already acts as an override;
+    # --db is just a friendlier way to set it from the command line.
+    if args.db and not os.environ.get("PWDTIMER_DB_URL"):
+        db_path = Path(args.db).expanduser().resolve()
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        os.environ["PWDTIMER_DB_URL"] = f"sqlite+aiosqlite:///{db_path}"
+        print(f"Using database: {db_path}")
 
     base = _resource_path()
 
@@ -183,6 +201,13 @@ def main() -> None:
     host = "127.0.0.1"
     port = args.port if args.port else _find_free_port()
     url = f"http://{host}:{port}"
+
+    # Include the DB filename in the window title so it's obvious which
+    # database is loaded when running multiple instances.
+    db_label = ""
+    if args.db:
+        db_label = f" — {Path(args.db).expanduser().stem}"
+    window_title = f"Sunnyside PWD Timer{db_label}"
 
     print(f"Starting PWDTimer server on {url} ...")
     server = _start_server(host, port)
@@ -224,7 +249,7 @@ def main() -> None:
             window_ref: list = [None]
             api = _WebViewApi(window_ref)
             window = webview.create_window(
-                "Sunnyside PWD Timer",
+                window_title,
                 url,
                 js_api=api,
                 width=1280,
