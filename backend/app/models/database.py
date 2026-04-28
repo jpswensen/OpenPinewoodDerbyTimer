@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import AsyncIterator
 
@@ -14,7 +15,20 @@ from sqlalchemy.orm import DeclarativeBase
 
 
 def _default_sqlite_path() -> Path:
-    # .../PWDTimer/backend/app/models/database.py -> parents[2] == .../PWDTimer/backend
+    # When running as a PyInstaller bundle __file__ resolves inside sys._MEIPASS,
+    # a temp directory that is recreated on every launch.  Use a platform-
+    # appropriate persistent user-data directory instead.
+    if getattr(sys, "frozen", False):
+        if sys.platform == "darwin":
+            data_dir = Path.home() / "Library" / "Application Support" / "PWDTimer"
+        elif sys.platform == "win32":
+            data_dir = Path(os.environ.get("APPDATA", str(Path.home()))) / "PWDTimer"
+        else:
+            data_dir = Path.home() / ".local" / "share" / "PWDTimer"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        return data_dir / "pwdtimer.db"
+
+    # Dev mode: place the DB next to the backend/ directory.
     backend_dir = Path(__file__).resolve().parents[2]
     return backend_dir / "pwdtimer.db"
 
