@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
-import { useConfirm } from '../components/ui/ConfirmDialog'
+import { useConfirm } from '../components/ui/useConfirm'
 import { useToast } from '../components/ui/Toast'
 
 import { ApiError } from '../api/client'
@@ -212,7 +212,7 @@ export function RacePage() {
 
   const [timerConn, setTimerConn] = useState<TimerConnectionStatus | null>(null)
   const [raceState, setRaceState] = useState<TimerRaceState | null>(null)
-  const raceStateRecvAtMsRef = useRef<number | null>(null)
+  const [raceStateRecvAtMs, setRaceStateRecvAtMs] = useState<number | null>(null)
   const [nowTickMs, setNowTickMs] = useState<number>(() => performance.now())
   const [laneTimes, setLaneTimes] = useState<TimerLaneTimes | null>(null)
 
@@ -298,7 +298,7 @@ export function RacePage() {
     if (msg.type === 'connection_status') {
       setTimerConn(msg.payload as TimerConnectionStatus)
     } else if (msg.type === 'race_state') {
-      raceStateRecvAtMsRef.current = performance.now()
+      setRaceStateRecvAtMs(performance.now())
       setRaceState(msg.payload as TimerRaceState)
     } else if (msg.type === 'lane_times') {
       setLaneTimes(msg.payload as TimerLaneTimes)
@@ -497,11 +497,10 @@ export function RacePage() {
     if (base == null) return null
     const sn = (raceState?.state_name ?? '').toUpperCase()
     if (sn !== 'IN_RACE') return base
-    const recvAt = raceStateRecvAtMsRef.current
-    if (recvAt == null) return base
+    if (raceStateRecvAtMs == null) return base
     // Interpolate forward from the last firmware sample so the display
     // ticks smoothly even when status frames arrive infrequently.
-    const driftUs = Math.max(0, Math.round((nowTickMs - recvAt) * 1000))
+    const driftUs = Math.max(0, Math.round((nowTickMs - raceStateRecvAtMs) * 1000))
     return base + driftUs
   })()
 

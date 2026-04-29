@@ -177,12 +177,12 @@ def main() -> None:
     args = parser.parse_args()
 
     # Set the DB path before the server imports database.py so the engine is
-    # created with the right URL.  PWDTIMER_DB_URL already acts as an override;
+    # created with the right URL. PWD_TIMER_DB_URL already acts as an override;
     # --db is just a friendlier way to set it from the command line.
-    if args.db and not os.environ.get("PWDTIMER_DB_URL"):
+    if args.db and not os.environ.get("PWD_TIMER_DB_URL"):
         db_path = Path(args.db).expanduser().resolve()
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        os.environ["PWDTIMER_DB_URL"] = f"sqlite+aiosqlite:///{db_path}"
+        os.environ["PWD_TIMER_DB_URL"] = f"sqlite+aiosqlite:///{db_path}"
         print(f"Using database: {db_path}")
 
     base = _resource_path()
@@ -207,7 +207,7 @@ def main() -> None:
     db_label = ""
     if args.db:
         db_label = f" — {Path(args.db).expanduser().stem}"
-    window_title = f"Sunnyside PWD Timer{db_label}"
+    window_title = f"PWDTimer{db_label}"
 
     print(f"Starting PWDTimer server on {url} ...")
     server = _start_server(host, port)

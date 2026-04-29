@@ -3,13 +3,13 @@ REM build.bat — Build a standalone PWDTimer binary for Windows.
 REM
 REM Usage:
 REM   cd PWDTimer
-REM   build.bat
+REM   scripts\build.bat
 REM
 REM Outputs:
 REM   dist\PWDTimer.exe   (single executable)
 
 setlocal enabledelayedexpansion
-cd /d "%~dp0"
+cd /d "%~dp0.."
 
 echo === PWDTimer Standalone Build ===
 
@@ -41,7 +41,7 @@ if not exist frontend\dist\index.html (
 
 REM ── 4. Run PyInstaller ─────────────────────────────────────────────
 echo Bundling with PyInstaller...
-pyinstaller --clean --noconfirm pwdtimer.spec
+pyinstaller --clean --noconfirm packaging\pyinstaller\pwdtimer.spec
 
 REM ── 5. Verify output ──────────────────────────────────────────────
 if exist dist\PWDTimer.exe (

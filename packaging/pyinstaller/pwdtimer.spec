@@ -4,7 +4,7 @@ PyInstaller spec for PWDTimer standalone desktop application.
 
 Usage:
     cd PWDTimer
-    pyinstaller pwdtimer.spec
+    pyinstaller packaging/pyinstaller/pwdtimer.spec
 
 This bundles the FastAPI backend, the built React frontend, and a native
 pywebview chromeless window into a single executable.
@@ -15,9 +15,19 @@ from pathlib import Path
 
 block_cipher = None
 
-# Paths relative to spec file location (PWDTimer/)
-backend_dir = Path("backend")
-frontend_dist = Path("frontend/dist")
+# Paths are absolute so the spec works whether it is invoked from the project
+# root or directly from packaging/pyinstaller.
+project_root = Path(__file__).resolve().parents[2]
+backend_dir = project_root / "backend"
+frontend_dist = project_root / "frontend" / "dist"
+icon_dir = project_root / "packaging" / "icons"
+app_icon = (
+    icon_dir / "pwdtimer.icns"
+    if platform.system() == "Darwin"
+    else icon_dir / "pwdtimer.ico"
+    if platform.system() == "Windows"
+    else icon_dir / "pwdtimer.png"
+)
 
 # Collect the entire app package
 app_tree = Tree(str(backend_dir / "app"), prefix="app")
@@ -158,7 +168,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,  # Add icon path here if desired, e.g. "icons/pwdtimer.icns"
+    icon=str(app_icon) if app_icon.is_file() else None,
 )
 
 # macOS: wrap into a .app bundle
@@ -166,8 +176,8 @@ if platform.system() == "Darwin":
     app = BUNDLE(
         exe,
         name="PWDTimer.app",
-        icon=None,  # e.g. "icons/pwdtimer.icns"
-        bundle_identifier="com.sunnyside.pwdtimer",
+        icon=str(app_icon) if app_icon.is_file() else None,
+        bundle_identifier="org.openpinewoodderbytimer.pwdtimer",
         info_plist={
             "CFBundleDisplayName": "PWDTimer",
             "CFBundleShortVersionString": "1.0.0",

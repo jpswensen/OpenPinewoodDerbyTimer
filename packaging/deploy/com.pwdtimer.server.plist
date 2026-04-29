@@ -8,7 +8,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/opt/pwdtimer/start-prod.sh</string>
+        <string>/opt/pwdtimer/scripts/start-prod.sh</string>
     </array>
 
     <key>WorkingDirectory</key>

@@ -1,273 +1,194 @@
-# PWDTimer User Guide
+# PWDTimer User Manual
 
-This guide walks you through running a complete Pinewood Derby event using PWDTimer.
+This manual is for the race runner using an already-built PWDTimer system. It assumes the timer hardware is assembled, the firmware is flashed, and the application is installed or available on the race computer.
 
-## Table of Contents
+## What you need on race day
 
-- [Overview](#overview)
-- [Starting the Application](#starting-the-application)
-- [Setting Up a Race Event](#setting-up-a-race-event)
-- [Managing Participants](#managing-participants)
-- [Connecting the Timer Hardware](#connecting-the-timer-hardware)
-- [Generating the Heat Schedule](#generating-the-heat-schedule)
-- [Running Races](#running-races)
-- [Viewing Results](#viewing-results)
-- [Generating Certificates](#generating-certificates)
-- [Tips for Race Day](#tips-for-race-day)
+- The race computer with PWDTimer installed or the source checkout available.
+- The ESP32 timer connected by USB, or the timer powered and broadcasting the `PWDTimer` Wi-Fi network.
+- The finish-line sensors aligned and plugged into the timer board.
+- The start-gate sensor plugged in and adjusted.
+- A racer CSV file. The example file is `example_racer_files/racers_demo.csv`.
+- A projector or external display if you want audience fullscreen mode.
 
----
+## Start the application
 
-## Overview
+If you have a packaged desktop app, open `PWDTimer.app`, `PWDTimer.exe`, or the `PWDTimer` executable.
 
-PWDTimer manages the full lifecycle of a Pinewood Derby event:
-
-1. **Setup** — Register racers, organize into groups, configure hardware
-2. **Schedule** — Auto-generate a fair heat schedule with lane rotation
-3. **Race** — Real-time timing with live display for the audience
-4. **Results** — Automatic standings calculation and PDF export
-5. **Awards** — Generate winner and participation certificates
-
-## Starting the Application
+If you are running from source:
 
 ```bash
 cd PWDTimer
-./start.sh
+./scripts/run-desktop.sh
 ```
 
-Open **http://localhost:5173** in your browser. The home page shows quick-action cards for each workflow step.
+Browser mode from source:
 
-> The backend API runs on port 8000 and the frontend dev server on port 5173. In production, the frontend can be served as static files by the backend.
+```bash
+./scripts/run-desktop.sh --headless
+```
 
-## Setting Up a Race Event
+Development mode:
 
-### Create Groups
+```bash
+./scripts/start.sh
+```
 
-1. Navigate to **Racers** from the sidebar.
-2. Click **Add Group** in the left panel.
-3. Enter a group name (e.g., "Tiger Cubs", "Wolf Den 3", "Open Class").
-4. Optionally add a description.
-5. Repeat for each age group or den.
+Then open `http://localhost:5173`.
 
-### Add Racers
+## Home
 
-There are three ways to add racers:
+The Home page gives quick links to the normal workflow: add racers, schedule heats, run the race, review results, print certificates, and adjust settings.
 
-#### Manual Entry
+![Home page](screenshots/home.png)
 
-1. Select a group in the left panel (or "All" for ungrouped).
-2. Click **Add Racer**.
-3. Fill in the racer's name, car name, and car number.
-4. Click **Save**.
+## Add racers
 
-#### CSV Import
+Open **Racers**.
 
-1. Click the **Import CSV** button.
-2. Upload a CSV file with columns: `name`, `car_name`, `car_number`, `group` (or `group_name`).
-3. Preview the import — the dialog shows a preview table and any errors.
-4. Map columns if headers differ from the defaults.
-5. Click **Import** to create all racers. Groups are auto-created if they don't exist.
+![Racers page](screenshots/racers.png)
 
-**Example CSV:**
+### Import a CSV
+
+1. Click **Import CSV**.
+2. Choose `example_racer_files/racers_demo.csv` or your event's racer file.
+3. Confirm that the fields map correctly.
+4. Click **Import**.
+
+Recommended CSV columns:
+
 ```csv
 name,car_name,car_number,group
-John Smith,Lightning,42,Tiger Cubs
-Jane Doe,Thunderbolt,17,Wolf
-Bob Wilson,Speed Demon,8,Bear
+Ethan Martinez,Blue Blaze,101,Tiger Cubs
+Olivia Chen,Purple Lightning,102,Tiger Cubs
 ```
 
-#### Bulk Entry
+The importer creates groups automatically when a `group` value is present.
 
-Use the **Add Multiple** button to add several racers at once with the same group assignment.
+### Check racer data
 
-### Organize Racers
+Before scheduling, confirm:
 
-- **Move between groups**: Select one or more racers, then drag onto a group name in the sidebar.
-- **Unassign from group**: Drag selected racers onto "All" to remove group assignment.
-- **Search**: Use the search bar to filter racers by name, car name, or car number.
-- **Delete**: Select racers and click **Delete**, or use the delete button on individual rows.
+- Every racer has the correct name.
+- Car numbers are unique enough for your check-in process.
+- Groups match the awards you plan to announce.
+- No test/demo racers remain in a real event database.
 
-## Connecting the Timer Hardware
+## Create a race and generate heats
 
-Navigate to **Settings** to configure the hardware connection.
+Open **Heats**.
 
-### USB Serial Connection
+![Heats page](screenshots/heats.png)
 
-1. Connect the ESP32 timer board via USB.
-2. In Settings → Connection, select **Serial** mode.
-3. Click **Refresh** to scan for available serial ports.
-4. Select the correct port (typically `/dev/ttyUSB0` on Linux, `/dev/cu.usbserial-*` on macOS, or `COM3` on Windows).
-5. Click **Connect**.
-6. The status indicator turns green when connected.
+1. Click **Create Race**.
+2. Name the race, for example `Pack Derby 2026`.
+3. Set the lane count to match the physical track.
+4. Click **Generate Heats**.
 
-### WiFi / TCP Connection
+PWDTimer generates a round-robin schedule so racers rotate through lanes. If a heat needs manual adjustment, drag racer cells between pending lanes before the heat is run.
 
-1. Power on the ESP32 timer (it creates a WiFi access point).
-2. Connect your computer to the **PWDTIMER** WiFi network (default password: `PWDTIMER`).
-3. In Settings → Connection, select **Network** mode.
-4. Either:
-   - Click **Discover** to find the timer via mDNS (`pwdtimer.local`), or
-   - Manually enter the IP address `192.168.4.1` and port `8080`.
-5. Click **Connect**.
+Print the heat schedule if your staging team wants a paper queue.
 
-### Connection Status
+## Connect the timer
 
-The connection indicator appears in the top-right of every page:
-- 🔴 **Disconnected** — No connection to timer
-- 🟡 **Connecting** — Attempting to connect
-- 🟢 **Connected** — Receiving timer data
+Open **Settings**.
 
-### Lane Configuration
+![Settings page](screenshots/settings.png)
 
-In Settings, set the number of active lanes (4, 6, or 8) to match your track. Click **Apply to Timer** to send the `SET_LANES` command to the hardware.
+### USB serial connection
 
-## Generating the Heat Schedule
+1. Connect the ESP32 timer by USB.
+2. Choose **Serial**.
+3. Click **Refresh ports**.
+4. Select the ESP32 serial port.
+5. Confirm baud rate `115200`.
+6. Click **Connect**.
+7. Set the lane count and click **Send to timer** if needed.
 
-1. Navigate to **Heats**.
-2. Select or create a **Race** (e.g., "Pack 123 Annual Derby").
-3. Set the **number of lanes** (must match the physical track).
-4. Optionally filter by **group** to schedule only one group at a time.
-5. Click **Generate Heats**.
+Typical ports:
 
-### How the Schedule Works
+| System | Example |
+| --- | --- |
+| macOS | `/dev/cu.usbserial-*` or `/dev/cu.SLAB_USBtoUART` |
+| Linux | `/dev/ttyUSB0` or `/dev/ttyACM0` |
+| Windows | `COM3`, `COM4`, etc. |
 
-The heat scheduler uses a **round-robin lane rotation** algorithm:
+### Wi-Fi UDP connection
 
-- **Every racer races once in every lane** — This ensures lane bias (fast vs. slow lanes) is eliminated.
-- **Number of heats** = max(number of racers, number of lanes).
-- **Bye lanes** (empty spots) appear when the racer count doesn't evenly fill all lanes.
+1. Power the timer.
+2. Join the `PWDTimer` Wi-Fi network.
+3. Use password `pinewood2025`.
+4. Choose **Wi-Fi (UDP)** in Settings.
+5. Use host `192.168.4.1`, command port `9100`, status port `9101`.
+6. Click **Connect**.
 
-**Example** — 6 racers on a 4-lane track:
+USB serial and Wi-Fi can both remain active on the firmware. Keep USB plugged in if you want a reliable fallback.
 
-| Heat | Lane 1 | Lane 2 | Lane 3 | Lane 4 |
-|------|--------|--------|--------|--------|
-| 1 | Racer A | Racer B | Racer C | Racer D |
-| 2 | Racer B | Racer C | Racer D | Racer E |
-| 3 | Racer C | Racer D | Racer E | Racer F |
-| 4 | Racer D | Racer E | Racer F | Racer A |
-| 5 | Racer E | Racer F | Racer A | Racer B |
-| 6 | Racer F | Racer A | Racer B | Racer C |
+## Run races
 
-### Managing Heats
+Open **Race**.
 
-- **Reorder**: Drag heats to change the running order.
-- **Reassign lanes**: For pending heats, drag racer names between lane cells.
-- **Repeat**: If a heat had a problem (false start, sensor issue), click **Repeat** to create a duplicate heat with the same lane assignments.
-- **Print**: Click the **Print** button for a physical heat sheet to hand to race marshals.
+![Race page](screenshots/race.png)
 
-## Running Races
+For each heat:
 
-1. Navigate to the **Race** page.
-2. The current heat is displayed at the top with racer assignments per lane.
-3. **Race states** are shown with color-coded indicators:
-   - ⬜ **Ready** (RESET) — Waiting for cars to be placed
-   - 🟨 **Set** — Start gate is closed, cars are positioned
-   - 🟩 **Racing** (IN_RACE) — Gate opened, timing in progress
-   - 🟦 **Finished** — All cars have crossed the finish line
+1. Place cars in the lanes shown on screen.
+2. Close the start gate. The timer should show **Set** when the gate is ready.
+3. Start the race by releasing the gate.
+4. Watch lane cards fill in as cars finish.
+5. Mark a lane **DNF** if a car does not finish and the heat should still be accepted.
+6. Click **Accept Heat** after times look correct.
+7. Move to the next heat.
 
-### Timer Controls
+Use **Reset** when a false start or sensor problem means the heat should be run again. Use **Repeat** from the Heats page if you need to preserve the original heat and append a rerun.
 
-- **Arm** — Send the ARM command to prepare the timer for a race start
-- **Reset** — Send RESET to clear times and prepare for the next heat
+### Projector mode
 
-### During a Race
+Use the fullscreen control on the Race page for an audience display. If using a second monitor or projector, move the browser/app window to that display before entering fullscreen.
 
-- Lane cards show racer names and update with **real-time elapsed times** via WebSocket.
-- As each car finishes, its **place** (1st, 2nd, 3rd…) and **finish time** appear.
-- The **elapsed timer** in the center shows the race duration.
+## Results
 
-### Projector / Audience Display
+Open **Results** after heats have accepted times.
 
-Click the **Fullscreen** button (⛶) in the top-right of the Race page for a large-format display suitable for projector or big-screen viewing.
+![Results page](screenshots/results.png)
 
-### Sound Effects
+Use this page to:
 
-Enable race start and finish sounds in **Settings → Sound**. Adjust volume or provide custom sound file URLs.
+- Review overall standings.
+- Filter or read group standings.
+- Check each racer's lane times.
+- Export a PDF results report.
 
-## Viewing Results
+Before announcing awards, scan for missing times, unexpected DNFs, or obvious sensor mistakes.
 
-1. Navigate to **Results**.
-2. Select a race from the dropdown.
-3. Results show overall standings sorted by average time.
+## Certificates
 
-### Standings Table
+Open **Certificates**.
 
-| Column | Description |
-|--------|-------------|
-| Place | Overall ranking |
-| Name | Racer name |
-| Car | Car name |
-| Group | Group assignment |
-| Lane 1–8 | Best time in each lane (seconds, 4 decimal places) |
-| Average | Mean of all lane times |
-| Best | Single fastest time |
+![Certificates page](screenshots/certificates.png)
 
-### Features
+1. Select the race.
+2. Choose winner, participation, or custom certificates.
+3. Fill in event name, date, and issued-by text.
+4. Preview a sample.
+5. Generate the PDF.
 
-- **Group filter** — View results for a specific group only.
-- **Sort** — Click column headers to sort by place, name, average, or best time.
-- **Top 3 highlighting** — Gold, silver, bronze styling for the top three positions.
-- **Expandable rows** — Click a racer row to see all individual heat/lane/time/place details.
-- **Statistics** — Summary stats at the top: fastest single time, closest finish margin, participation count.
+Print certificates after confirming the final results.
 
-### Exporting Results
+## End-of-event checklist
 
-- **PDF Download** — Click **Export PDF** for a professional results document with race metadata, standings table, and formatted times.
-- **Print** — Use the browser's print function; a print-friendly stylesheet hides navigation elements.
+1. Export or print final results.
+2. Generate certificates if needed.
+3. Save a backup copy of the database or use `--db` to keep event-specific databases.
+4. Disconnect the timer in Settings before unplugging hardware.
+5. Keep the racer CSV and PDF results with your event records.
 
-## Generating Certificates
+## Common race-day fixes
 
-1. Navigate to **Certificates**.
-2. Select a **race**.
-3. Choose the certificate type:
-   - **Winner** — 1st, 2nd, 3rd place (overall and/or per-group)
-   - **Participation** — For all racers who participated
-   - **Custom** — Participation layout with a custom message
-4. Select recipients:
-   - **All participants** — Everyone in the race
-   - **Group** — Only racers in a specific group
-   - **Individual** — Select specific racers
-5. Customize fields: event name, date, issued-by name, custom message.
-6. Click **Preview** to see a sample certificate.
-7. Click **Generate & Download** to create a multi-page PDF (one certificate per page).
-
-### Certificate Styles
-
-- **Winner certificates** include place (1st/2nd/3rd), racer name, car name, and event details with decorative border and seal.
-- **Participation certificates** include racer name, event name, and date with the same decorative styling.
-
-## Tips for Race Day
-
-### Before the Event
-
-- [ ] Import all racers via CSV or manual entry
-- [ ] Verify group assignments are correct
-- [ ] Generate the heat schedule and print heat sheets
-- [ ] Test the timer connection (USB or WiFi)
-- [ ] Run a test race to verify all lanes detect properly
-- [ ] Set up a projector connected to the Race page in fullscreen mode
-
-### During the Event
-
-- Keep the **Heats** page open on the organizer's laptop for heat management
-- Display the **Race** page in fullscreen on the projector for the audience
-- After each heat, times are automatically recorded — advance to the next heat
-- If a heat needs to be re-run (sensor miss, false start), use the **Repeat** button
-- Check **Results** periodically to see current standings
-
-### After the Event
-
-- Review final **Results** and verify standings
-- Export results as **PDF** for records
-- Generate **winner certificates** for top 3 in each group
-- Generate **participation certificates** for all racers
-- Export racer data as **CSV** for your records
-
-### Troubleshooting Quick Reference
-
-| Issue | Solution |
-|-------|----------|
-| Timer not connecting | Check USB cable / WiFi network, see [Troubleshooting](troubleshooting.md) |
-| Lane not detecting | Check IR sensor alignment, verify GPIO connection |
-| Times look wrong | Ensure lane count matches track; check for sensor bounce |
-| Heat schedule wrong | Delete and regenerate heats; verify racer count and lane count |
-| WebSocket disconnects | Check network stability; the frontend auto-reconnects |
+| Symptom | What to try |
+| --- | --- |
+| No serial ports appear | Use a data USB cable, install the USB serial driver, then refresh ports. |
+| Wi-Fi connects but no data arrives | Confirm host `192.168.4.1`, UDP ports `9100` and `9101`, and that the computer is on the `PWDTimer` network. |
+| Race never finishes | A lane sensor missed a car. Check alignment, mark DNF, or reset and rerun. |
+| Times look impossible | Check gate sensor behavior and lane sensor sensitivity before accepting the heat. |
+| Wrong lane count | Change lane count in Settings and send it to the timer before generating/running heats. |

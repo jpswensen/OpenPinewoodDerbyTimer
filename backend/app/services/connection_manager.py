@@ -197,8 +197,9 @@ class ConnectionManager:
         if since is None:
             await asyncio.sleep(0.15)
             return
-        deadline = asyncio.get_event_loop().time() + timeout
-        while asyncio.get_event_loop().time() < deadline:
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while loop.time() < deadline:
             last = self._status.last_message_at
             if last is not None and last > since:
                 return

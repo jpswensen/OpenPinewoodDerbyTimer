@@ -1,6 +1,6 @@
 [Unit]
 Description=PWDTimer — Pinewood Derby Timer Management System
-Documentation=https://github.com/your-org/PWDTimer
+Documentation=https://github.com/jpswensen/OpenPinewoodDerbyTimer
 After=network.target
 
 [Service]

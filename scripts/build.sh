@@ -4,13 +4,14 @@
 #
 # Usage:
 #   cd PWDTimer
-#   ./build.sh
+#   ./scripts/build.sh
 #
 # Outputs:
 #   dist/PWDTimer   (single executable)
 #
 set -euo pipefail
-cd "$(dirname "$0")"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
 
 echo "=== PWDTimer Standalone Build ==="
 
@@ -46,7 +47,7 @@ echo "Bundling with PyInstaller..."
 
 # Clear any stale local build artifacts (avoid --clean which touches global cache)
 rm -rf build/PWDTimer dist/PWDTimer dist/PWDTimer.app
-pyinstaller --noconfirm pwdtimer.spec
+pyinstaller --noconfirm packaging/pyinstaller/pwdtimer.spec
 
 # ── 5. Verify output ────────────────────────────────────────────────────
 if [ -d dist/PWDTimer.app ]; then

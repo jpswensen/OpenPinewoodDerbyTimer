@@ -16,6 +16,21 @@ import type { Racer, RacerCreate, RacerUpdate } from '../api/endpoints/racers'
 import { createRacer, deleteRacer, listRacers, updateRacer } from '../api/endpoints/racers'
 import { exportRacersCsv, importRacersCsv } from '../api/endpoints/importExport'
 
+type PyWebViewBridge = {
+  api?: {
+    pick_file?: (
+      title?: string,
+      fileTypes?: string,
+    ) => Promise<{ name?: string; contents?: string } | null>
+  }
+}
+
+declare global {
+  interface Window {
+    pywebview?: PyWebViewBridge
+  }
+}
+
 type CsvRow = Record<string, string>
 
 type GroupDraft = { name: string; description: string }
@@ -1127,7 +1142,7 @@ export function RacersPage() {
               size="sm"
               onClick={async () => {
                 // Use pywebview native file dialog if available
-                const pywebview = (window as any).pywebview
+                const pywebview = window.pywebview
                 if (pywebview?.api?.pick_file) {
                   try {
                     const result = await pywebview.api.pick_file(

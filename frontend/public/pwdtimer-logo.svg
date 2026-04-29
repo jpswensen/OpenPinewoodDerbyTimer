@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">PWDTimer logo</title>
+  <desc id="desc">A blue timer badge with pinewood derby lane stripes and a racing car.</desc>
+  <defs>
+    <linearGradient id="bg" x1="72" y1="56" x2="440" y2="456" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#4f46e5"/>
+    </linearGradient>
+    <linearGradient id="car" x1="150" y1="284" x2="358" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fb923c"/>
+      <stop offset="1" stop-color="#f97316"/>
+    </linearGradient>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="108" fill="url(#bg)"/>
+  <path d="M256 122v52M216 122h80" stroke="#dbeafe" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="256" cy="286" r="132" fill="none" stroke="#eff6ff" stroke-width="34" opacity=".96"/>
+  <path d="M256 286l78-72" stroke="#eff6ff" stroke-width="28" stroke-linecap="round"/>
+  <path d="M130 238h76M110 286h92M130 334h76" stroke="#bfdbfe" stroke-width="16" stroke-linecap="round" opacity=".9"/>
+  <path d="M158 323c11-35 47-58 91-58h51c29 0 55 16 69 41l20 36H137l21-19Z" fill="url(#car)"/>
+  <path d="M222 266h70l34 40H188c8-24 20-40 34-40Z" fill="#fed7aa" opacity=".9"/>
+  <circle cx="199" cy="346" r="29" fill="#0f172a"/>
+  <circle cx="199" cy="346" r="12" fill="#e2e8f0"/>
+  <circle cx="335" cy="346" r="29" fill="#0f172a"/>
+  <circle cx="335" cy="346" r="12" fill="#e2e8f0"/>
+</svg>

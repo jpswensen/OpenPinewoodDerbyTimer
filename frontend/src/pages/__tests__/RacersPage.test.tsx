@@ -9,10 +9,8 @@ describe('RacersPage', () => {
     renderWithProviders(<RacersPage />)
 
     // Wait for groups to load from MSW
-    await waitFor(() => {
-      expect(screen.getByText('Tiger Cubs')).toBeInTheDocument()
-    })
-    expect(screen.getByText('Wolf')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Tiger Cubs' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Wolf' })).toBeInTheDocument()
   })
 
   it('loads and displays racers', async () => {

@@ -1,418 +1,160 @@
-# PWDTimer — Pinewood Derby Timer Management System
+# Open Pinewood Derby Timer
 
-A modern, full-stack race management system for Pinewood Derby events. PWDTimer combines a **FastAPI** backend, a **React** web frontend, and custom **ESP32 firmware** to deliver real-time timing, automatic heat scheduling, and professional results & certificate generation — all from a browser.
+PWDTimer is a modern Pinewood Derby timing and race-management system. It combines an ESP32-based 8-lane timer board, PlatformIO firmware, a FastAPI backend, and a React web UI for race setup, live timing, results, and certificates.
 
-## Features
+This repository is intended to be published as `OpenPinewoodDerbyTimer`.
 
-| Feature | Description |
-|---------|-------------|
-| **Participant Management** | Organize racers into groups (Tiger Cubs, Wolf, Bear, Webelos, etc.) with CSV import/export |
-| **Automatic Heat Scheduling** | Fair round-robin lane rotation ensuring every racer competes in every lane |
-| **Real-time Race Display** | Live timing via WebSocket with place indicators as cars finish |
-| **Serial & WiFi** | USB serial (primary) and UDP-over-SoftAP (optional) for the timing hardware |
-| **Results & Rankings** | Automatic average/best time calculation, overall and per-group standings |
-| **PDF Export** | Professional race results documents (letter/A4, portrait/landscape) |
-| **Award Certificates** | Decorative winner and participation certificates with batch generation |
-| **Dark Mode** | Full light/dark theme support with persistent preference |
-| **Projector Mode** | Fullscreen race display optimized for venue projection |
+## Highlights
 
-## Architecture
+| Area | What it provides |
+| --- | --- |
+| Race management | Groups, racers, CSV import/export, race creation, and heat generation |
+| Live race UI | WebSocket updates, lane timing, DNF handling, heat acceptance, and fullscreen/projector mode |
+| Results | Overall and group standings, per-lane times, PDF results export |
+| Awards | Winner and participation certificate generation |
+| Hardware | ESP32 8-lane board design with USB serial and optional Wi-Fi UDP transport |
+| Packaging | Development scripts, production server script, Docker Compose, and PyInstaller desktop app build |
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        Web Browser                               │
-│  React + TypeScript + Tailwind CSS + TanStack Query              │
-│  Pages: Home │ Racers │ Heats │ Race │ Results │ Certs │ Settings│
-└──────────────────┬───────────────────────┬───────────────────────┘
-                   │ REST API (HTTP)       │ WebSocket (/ws)
-                   ▼                       ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                      FastAPI Backend                             │
-│  SQLAlchemy + SQLite │ Pydantic │ ReportLab (PDF/Certificates)   │
-│  Routers: races, racers, groups, connection, certificates, ws    │
-│  Services: heat_scheduler, connection_manager, timer_protocol    │
-└──────────────────┬───────────────────────────────────────────────┘
-                   │ Serial (USB) or UDP (SoftAP)
-                   ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                    ESP32 Firmware (DoIT board)                    │
-│  FreeRTOS: Core 1 (GPIO polling, timing) │ Core 0 (state+comms) │
-│  CCOUNT cycle-counter for sub-μs lane timing precision           │
-│  Protocol: $state,startTime,currentTime,numLanes,t0,...*         │
-└──────────────────────────────────────────────────────────────────┘
+## Repository layout
+
+```text
+PWDTimer/
+├── assets/branding/          # Source logo/branding assets
+├── backend/                  # FastAPI app, database models, services, tests
+├── docs/                     # User, API, firmware, troubleshooting, and roadmap docs
+├── example_racer_files/      # Example CSV imports, including racers_demo.csv
+├── firmware/                 # ESP32 PlatformIO firmware
+├── frontend/                 # React + TypeScript + Tailwind UI
+├── hardware/                 # Current Eagle schematic/board design
+├── packaging/
+│   ├── deploy/               # systemd/launchd examples
+│   ├── icons/                # App icons for packaged builds
+│   └── pyinstaller/          # PyInstaller spec
+├── scripts/                  # Build, run, clean, and serial smoke-test scripts
+├── docker-compose.yml
+└── README.md
 ```
 
-## Prerequisites
+Generated local folders such as `build/`, `dist/`, `build_env/`, `frontend/dist/`, `frontend/node_modules/`, firmware `.pio/`, local databases, and cache files are intentionally ignored.
 
-| Requirement | Minimum Version | Purpose |
-|-------------|-----------------|---------|
-| **Python** | 3.11+ | Backend server |
-| **Node.js** | 18+ | Frontend build and dev server |
-| **npm** | 9+ | Frontend dependency management |
-| **PlatformIO** | 6+ | Firmware compilation and flashing (optional — only needed for hardware) |
+## Quick start for development
 
-## Quick Start
+Prerequisites:
 
-### 1. Clone and enter the project
+- Python 3.11+
+- Node.js 18+ and npm 9+
+- PlatformIO 6+ only if you are building/flashing firmware
 
 ```bash
 cd PWDTimer
-```
-
-### 2. Set up the Python environment
-
-```bash
 python3 -m venv env
-source env/bin/activate        # macOS / Linux
-# env\Scripts\activate         # Windows
+source env/bin/activate
 pip install -r backend/requirements.txt
-```
 
-### 3. Start the application
-
-```bash
-./start.sh
-```
-
-This launches both the **backend** (Uvicorn on `http://localhost:8000`) and the **frontend** dev server (Vite on `http://localhost:5173`). Open your browser to **http://localhost:5173**.
-
-> **Tip:** You can override ports with environment variables:
-> ```bash
-> BACKEND_PORT=9000 FRONTEND_PORT=3000 ./start.sh
-> ```
-
-### 4. (Optional) Start services individually
-
-```bash
-# Backend only
-cd backend
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-
-# Frontend only (in another terminal)
-cd frontend
-npm install   # first time only
-npm run dev
-```
-
-## Project Structure
-
-```
-PWDTimer/
-├── backend/                    # FastAPI application
-│   ├── app/
-│   │   ├── main.py             # App entry point, CORS, startup events
-│   │   ├── models/
-│   │   │   ├── database.py     # Async SQLAlchemy engine + session
-│   │   │   ├── models.py       # ORM models (Group, Racer, Race, Heat, ...)
-│   │   │   └── schemas.py      # Pydantic request/response schemas
-│   │   ├── routers/            # API route handlers
-│   │   │   ├── races.py        # Race & heat management
-│   │   │   ├── racers.py       # Racer CRUD
-│   │   │   ├── groups.py       # Group management
-│   │   │   ├── certificates.py # PDF certificate generation
-│   │   │   ├── connection.py   # Hardware connection control
-│   │   │   ├── websocket.py    # Real-time WebSocket endpoint
-│   │   │   └── import_export.py# CSV import/export
-│   │   └── services/           # Business logic
-│   │       ├── heat_scheduler.py       # Round-robin heat generation
-│   │       ├── race_results.py         # Results calculation
-│   │       ├── connection_manager.py   # Hardware connection state
-│   │       ├── timer_protocol.py       # Message parsing/formatting
-│   │       ├── event_bus.py            # WebSocket event broadcasting
-│   │       ├── pdf_generator.py        # PDF results export
-│   │       ├── certificate_generator.py# Decorative certificates
-│   │       ├── serial_connection.py    # Serial port handling
-│   │       ├── udp_connection.py       # UDP socket handling (WiFi mode)
-│   │       └── mdns_discovery.py       # mDNS device discovery
-│   ├── tests/                  # pytest test suite
-│   ├── Dockerfile              # Backend container image
-│   └── requirements.txt
-├── frontend/                   # React + TypeScript application
-│   ├── src/
-│   │   ├── pages/              # 8 main page components
-│   │   ├── components/         # Reusable UI components
-│   │   ├── hooks/              # Custom React hooks (useWebSocket, etc.)
-│   │   ├── context/            # React context providers (theme)
-│   │   ├── providers/          # App-level provider wrappers
-│   │   ├── routes/             # Route definitions (AppRoutes)
-│   │   ├── api/                # Typed API client + endpoint functions
-│   │   └── lib/                # Utilities (settings, helpers)
-│   ├── Dockerfile              # Frontend container image (nginx)
-│   ├── nginx.conf              # Production nginx configuration
-│   ├── package.json
-│   └── vite.config.ts
-├── firmware/                   # ESP32 PlatformIO project
-│   ├── src/
-│   │   ├── main.cpp            # FreeRTOS task setup, state machine
-│   │   ├── gates.cpp/h         # Core 1 GPIO polling loop, CCOUNT timing
-│   │   ├── comms.cpp/h         # Serial output ($...* protocol frames)
-│   │   ├── state.cpp/h         # TimerState enum and types
-│   │   ├── udp_comms.cpp/h     # UDP transport (optional WiFi mode)
-│   │   └── wifi_ap.cpp/h       # SoftAP setup
-│   └── platformio.ini
-├── docs/                       # Documentation
-├── docker-compose.yml          # Single-command Docker deployment
-├── .env.example                # Environment variable template
-├── start.sh                    # Development startup script
-├── start-prod.sh               # Production startup script
-├── run-desktop.sh              # Desktop app launcher (pywebview)
-├── clean.sh                    # Remove build artifacts (build/, dist/, frontend/dist/)
-├── build.sh                    # Standalone binary build (macOS/Linux)
-├── build.bat                   # Standalone binary build (Windows)
-├── pwdtimer.spec               # PyInstaller spec file
-└── .gitignore
-```
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [User Guide](docs/user-guide.md) | Step-by-step usage instructions for running a derby event |
-| [API Reference](docs/api-reference.md) | Complete REST API and WebSocket endpoint documentation |
-| [Firmware Setup](docs/firmware-setup.md) | Flashing instructions, hardware connections, pin mappings |
-| [Troubleshooting](docs/troubleshooting.md) | Common issues and solutions |
-
-### Lane Count
-
-The number of active lanes is a **global setting** (Settings → Lane Count) rather than a per-race option. Set it once to match your track hardware and it applies to every race and heat automatically.
-
-### Connecting over Wi-Fi (UDP)
-
-The firmware brings up a SoftAP **simultaneously** with the existing serial
-transport — both stay live at all times, so the operator never loses the
-serial fallback.
-
-* **SSID:** `PWDTimer`
-* **Password:** `pinewood2025` (WPA2)
-* **Device IP:** `192.168.4.1`
-* **Ports:** UDP `9100` (host → device commands), UDP `9101` (device → host
-  status broadcasts)
-
-Steps:
-
-1. Flash the firmware (`pio run -t upload` from `firmware/`).
-2. On the host computer, join the `PWDTimer` Wi-Fi network. The host has
-   no internet while joined — the UI is fully self-contained and works
-   offline.
-3. In **Settings → Connection → Wi-Fi (UDP)**, click **Connect**. The
-   defaults match the firmware out of the box.
-
-Status frames are emitted on serial and UDP simultaneously, so it is safe
-to keep a USB cable plugged in for monitoring while the UI talks UDP.
-
-## Running Tests
-
-### Backend
-
-```bash
-cd backend
-source ../env/bin/activate      # if not already active
-pip install -r requirements.txt # includes pytest, pytest-asyncio, pytest-cov
-python -m pytest tests/ -v --cov=app --cov-report=term-missing
-```
-
-### Frontend
-
-```bash
 cd frontend
 npm install
-npm run test                    # Vitest unit/integration tests (97+ tests)
-npm run lint                    # ESLint
-npm run build                   # TypeScript + production build check
+cd ..
+
+./scripts/start.sh
 ```
 
-### Firmware
+Open `http://localhost:5173`. The backend runs at `http://localhost:8000`.
 
-The firmware is built and flashed with PlatformIO — there are no standalone unit tests. To verify the firmware build:
+Useful overrides:
 
 ```bash
-cd firmware
-pio run            # compile only
-pio run -t upload  # compile and flash to connected board
-pio device monitor # open serial monitor (Ctrl+C to exit)
+BACKEND_PORT=9000 FRONTEND_PORT=3000 ./scripts/start.sh
+PWD_TIMER_CORS_ORIGINS=http://localhost:3000 ./scripts/start.sh
 ```
 
-## Hardware
+## Race-day / packaged use
 
-This system works with custom ESP32-based timing hardware supporting **4–8 lanes**. See the [Firmware Setup Guide](docs/firmware-setup.md) for detailed hardware connection information and the `SunnysidePWDTimer/Board/` directory for Eagle schematic and PCB designs.
+For a race runner who is not modifying code, see the [User Manual](docs/user-guide.md). It explains importing `example_racer_files/racers_demo.csv`, setting lanes, connecting the timer, generating heats, running races, and exporting results/certificates.
 
-### Supported Boards
-
-| Board | MCU | Lanes | Connection |
-|-------|-----|-------|------------|
-| PWDTimer V2 (DoIT ESP32) | ESP32 | 8 | USB Serial + optional WiFi UDP |
-
-## Deployment
-
-PWDTimer supports several deployment options depending on your needs.
-
-### Option 1: Production Script (Simplest)
-
-A single `start-prod.sh` script builds the frontend and starts a production-grade Gunicorn server that serves both the API and the web interface:
+Desktop-style launch from source:
 
 ```bash
-# Build frontend & start production server on port 8000
-./start-prod.sh
+./scripts/run-desktop.sh
+./scripts/run-desktop.sh --headless
 ```
 
-Configure via environment variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PWD_TIMER_HOST` | `0.0.0.0` | Bind address |
-| `PWD_TIMER_PORT` | `8000` | Server port |
-| `PWD_TIMER_WORKERS` | `1` | Gunicorn worker count |
-| `PWD_TIMER_LOG_LEVEL` | `info` | Log level (debug/info/warning/error) |
-| `PWD_TIMER_DB_URL` | `sqlite+aiosqlite:///data/pwdtimer.db` | Database URL |
-| `PWD_TIMER_STATIC_DIR` | `frontend/dist` | Path to built frontend |
-| `PWD_TIMER_WS_TOKEN` | *(empty)* | Optional WebSocket auth token |
-
-### Option 2: Docker Compose
-
-Run the entire stack in containers with a single command:
+Standalone package build:
 
 ```bash
-# Start everything
-docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Stop
-docker compose down
+./scripts/build.sh        # macOS/Linux
+scripts\build.bat        # Windows
 ```
 
-The frontend is served by **nginx** on port 80 (configurable via `FRONTEND_PORT`), which proxies API and WebSocket requests to the backend container on port 8000.
-
-To connect the timer hardware via USB serial from within Docker, uncomment the `devices` section in `docker-compose.yml`.
-
-Copy `.env.example` to `.env` to customize settings:
-
-```bash
-cp .env.example .env
-# Edit .env as needed, then:
-docker compose up -d
-```
-
-### Option 3: Desktop App (pywebview)
-
-Run PWDTimer as a native desktop application with a chromeless window — no browser address bar, no tab management. The app uses the OS-native webview (WebKit on macOS, Edge WebView2 on Windows, WebKitGTK on Linux).
-
-**First-time setup:**
-
-```bash
-cd PWDTimer
-python3 -m venv env
-source env/bin/activate        # macOS / Linux
-pip install -r backend/requirements.txt
-cd frontend && npm ci && npm run build && cd ..
-```
-
-**Launch:**
-
-```bash
-./run-desktop.sh               # Native window (pywebview)
-./run-desktop.sh --headless    # Opens in default browser instead
-```
-
-The launcher automatically:
-- Picks a free port (no port conflicts)
-- Starts the FastAPI server in the background
-- Opens a native window (or browser in headless mode)
-- Shuts down the server when the window is closed
-
-> **Tip:** If pywebview is not installed, the launcher gracefully falls back to opening your default browser.
-
-### Option 4: Standalone Binary (PyInstaller)
-
-Package PWDTimer into a **self-contained application** — Python, all dependencies, the backend, and the built frontend are all bundled together. Transfer the app to any compatible machine with no Python installation required.
-
-**Build:**
-
-```bash
-# macOS / Linux
-cd PWDTimer
-./build.sh
-
-# Windows
-cd PWDTimer
-build.bat
-```
-
-The build script creates a dedicated virtual environment, installs dependencies, builds the frontend, and runs PyInstaller. Output:
+Outputs:
 
 | Platform | Output |
-|----------|--------|
+| --- | --- |
 | macOS | `dist/PWDTimer.app` |
 | Linux | `dist/PWDTimer` |
 | Windows | `dist\PWDTimer.exe` |
 
-**Run:**
+The packaged app stores its default database in the platform application-data directory. Use `--db /path/to/race.db` to keep separate race databases.
+
+## Firmware and hardware
+
+The active hardware design is `hardware/PWDTimer_8Lane/`. It matches the firmware pin map in `firmware/src/gates.cpp`.
 
 ```bash
-# macOS — double-click in Finder, or from Terminal:
-open dist/PWDTimer.app
-./dist/PWDTimer.app/Contents/MacOS/PWDTimer            # native desktop window
-./dist/PWDTimer.app/Contents/MacOS/PWDTimer --headless # opens in default browser
-
-# Linux / Windows
-./dist/PWDTimer                # native desktop window
-./dist/PWDTimer --headless     # opens in default browser
-./dist/PWDTimer --port 8080    # use a specific port
+cd firmware
+pio run
+pio run -t upload
+pio device monitor
 ```
 
-**Database location:**
+Default Wi-Fi UDP firmware settings when `PWDTIMER_ENABLE_WIFI=1` is enabled:
 
-The database is stored in a persistent, platform-specific directory so data survives app updates and rebuilds:
+| Setting | Value |
+| --- | --- |
+| SSID | `PWDTimer` |
+| Password | `pinewood2025` |
+| Device IP | `192.168.4.1` |
+| Command port | UDP `9100` |
+| Status broadcast port | UDP `9101` |
 
-| Platform | Path |
-|----------|------|
-| macOS | `~/Library/Application Support/PWDTimer/pwdtimer.db` |
-| Windows | `%APPDATA%\PWDTimer\pwdtimer.db` |
-| Linux | `~/.local/share/PWDTimer/pwdtimer.db` |
+USB serial remains available even when Wi-Fi is enabled.
 
-**Multiple databases (e.g., different congregations):**
-
-Use the `--db` flag to point the app at any SQLite file. The directory is created automatically and the filename appears in the window title so you always know which database is loaded.
+## Validation commands
 
 ```bash
-# macOS
-./dist/PWDTimer.app/Contents/MacOS/PWDTimer --db ~/races/ward1.db
-./dist/PWDTimer.app/Contents/MacOS/PWDTimer --db ~/races/ward2.db
+cd backend
+python3 -m pytest tests
 
-# Linux / Windows
-./dist/PWDTimer --db ~/races/ward1.db
-./dist/PWDTimer --db ~/races/ward2.db
+cd ../frontend
+npm run lint
+npm run test
+npm run build
+
+cd ../firmware
+pio run
 ```
 
-> **Tip:** Create a small shell script (or `.command` file on macOS) for each congregation so volunteers can double-click to open the right database without touching a terminal.
->
-> ```bash
-> #!/bin/bash
-> # Ward1.command — make executable with: chmod +x Ward1.command
-> /Applications/PWDTimer.app/Contents/MacOS/PWDTimer --db ~/races/ward1.db
-> ```
+## Documentation
 
-**Zoom / scaling:**
+| Document | Purpose |
+| --- | --- |
+| [User Manual](docs/user-guide.md) | Race-runner workflow for an already-built system |
+| [Firmware Setup](docs/firmware-setup.md) | Flashing, pin map, protocol, and hardware connection notes |
+| [Hardware README](hardware/README.md) | Eagle files, connector map, and board fabrication notes |
+| [API Reference](docs/api-reference.md) | Main REST/WebSocket endpoints |
+| [Troubleshooting](docs/troubleshooting.md) | Startup, hardware, timing, and packaging issues |
+| [Review and Roadmap](docs/code-review-roadmap.md) | Known risks, fixes made during prep, and recommended future work |
 
-In the desktop window, standard browser zoom shortcuts work:
+## Preparing a remote repository while preserving history
 
-| Shortcut | Action |
-|----------|--------|
-| `Cmd/Ctrl` + `=` or `+` | Zoom in |
-| `Cmd/Ctrl` + `-` | Zoom out |
-| `Cmd/Ctrl` + `0` | Reset to 100% |
-
-Zoom level is saved to the browser's `localStorage` and restored on the next launch.
-
-**Cleaning build artifacts:**
+`PWDTimer` is already a Git repository. To publish it to the empty remote while retaining this history:
 
 ```bash
-./clean.sh         # removes build/, dist/, frontend/dist/
-./clean.sh --all   # also removes node_modules/ and build_env/ (full reset)
+cd PWDTimer
+git remote add origin https://github.com/jpswensen/OpenPinewoodDerbyTimer.git
+git push -u origin main
 ```
 
-> **Note:** The standalone binary must be built on the same OS/architecture as the target machine (build on macOS for macOS, build on Windows for Windows).
+Do this only after reviewing the final diff.
 
 ## License
 

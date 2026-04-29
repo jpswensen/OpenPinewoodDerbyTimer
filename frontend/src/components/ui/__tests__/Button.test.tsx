@@ -25,13 +25,14 @@ describe('Button', () => {
   it('applies primary variant classes by default', () => {
     render(<Button>Primary</Button>)
     const btn = screen.getByRole('button')
-    expect(btn.className).toContain('bg-slate-900')
+    expect(btn.className).toContain('bg-blue-600')
+    expect(btn.className).toContain('text-white')
   })
 
   it('applies secondary variant classes', () => {
     render(<Button variant="secondary">Sec</Button>)
     const btn = screen.getByRole('button')
-    expect(btn.className).toContain('bg-slate-200')
+    expect(btn.className).toContain('bg-slate-100')
   })
 
   it('applies ghost variant classes', () => {

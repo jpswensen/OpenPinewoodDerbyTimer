@@ -11,7 +11,7 @@ describe('Card', () => {
   it('applies default styling classes', () => {
     render(<Card data-testid="card">content</Card>)
     const card = screen.getByTestId('card')
-    expect(card.className).toContain('rounded-lg')
+    expect(card.className).toContain('rounded-xl')
     expect(card.className).toContain('border')
     expect(card.className).toContain('shadow-sm')
   })

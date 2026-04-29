@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from './Button'
 
@@ -71,42 +71,4 @@ export function ConfirmDialog({
     </div>,
     document.body,
   )
-}
-
-/**
- * useConfirm: imperative API. Call `confirm(opts)` to show the dialog and
- * await the boolean result. Render `<dialog />` once somewhere in your tree.
- */
-export function useConfirm() {
-  const [state, setState] = useState<ConfirmOptions | null>(null)
-  const resolverRef = useRef<((value: boolean) => void) | null>(null)
-
-  const confirm = useCallback((opts: ConfirmOptions) => {
-    setState(opts)
-    return new Promise<boolean>((resolve) => {
-      resolverRef.current = resolve
-    })
-  }, [])
-
-  const handle = useCallback((value: boolean) => {
-    setState(null)
-    const resolve = resolverRef.current
-    resolverRef.current = null
-    resolve?.(value)
-  }, [])
-
-  const dialog = state ? (
-    <ConfirmDialog
-      open
-      title={state.title}
-      message={state.message}
-      confirmLabel={state.confirmLabel}
-      cancelLabel={state.cancelLabel}
-      variant={state.variant}
-      onConfirm={() => handle(true)}
-      onCancel={() => handle(false)}
-    />
-  ) : null
-
-  return { confirm, dialog }
 }

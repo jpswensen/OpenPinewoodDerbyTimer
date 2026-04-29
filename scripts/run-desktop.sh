@@ -7,11 +7,11 @@
 #
 # Usage:
 #   cd PWDTimer
-#   ./run-desktop.sh              # pywebview window
-#   ./run-desktop.sh --headless   # opens in default browser instead
+#   ./scripts/run-desktop.sh              # pywebview window
+#   ./scripts/run-desktop.sh --headless   # opens in default browser instead
 #
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 # Build frontend if dist is missing or stale
 if [ ! -f frontend/dist/index.html ]; then

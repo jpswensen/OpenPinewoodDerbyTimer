@@ -34,7 +34,11 @@ def _default_sqlite_path() -> Path:
 
 
 def get_database_url() -> str:
-    return os.getenv("PWDTIMER_DB_URL", f"sqlite+aiosqlite:///{_default_sqlite_path()}")
+    return (
+        os.getenv("PWD_TIMER_DB_URL")
+        or os.getenv("PWDTIMER_DB_URL")
+        or f"sqlite+aiosqlite:///{_default_sqlite_path()}"
+    )
 
 
 class Base(DeclarativeBase):

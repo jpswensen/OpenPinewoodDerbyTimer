@@ -5,12 +5,12 @@
 # The backend serves the built frontend static files directly.
 #
 # Usage:
-#   ./start-prod.sh                     # defaults
-#   PWD_TIMER_PORT=9000 ./start-prod.sh # custom port
+#   ./scripts/start-prod.sh                     # defaults
+#   PWD_TIMER_PORT=9000 ./scripts/start-prod.sh # custom port
 #
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # ── Configuration (override via environment variables) ────────────────────────
 PYTHON_BIN="${PYTHON_BIN:-python3}"

@@ -100,7 +100,7 @@ export function HeatsPage() {
 
   const races = racesQ.data ?? []
   const groups = groupsQ.data ?? []
-  const heats = heatsQ.data ?? []
+  const heats = useMemo(() => heatsQ.data ?? [], [heatsQ.data])
 
   const racersById = useMemo(() => {
     const m = new Map<number, Racer>()

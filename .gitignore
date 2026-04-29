@@ -78,6 +78,10 @@ coverage/
 # Compiled test binaries
 firmware/test_*_bin
 
+# Eagle/Autodesk EAGLE backup intermediates
+*.b#*
+*.s#*
+
 # Temporary files
 tmp/
 temp/

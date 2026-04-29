@@ -3,8 +3,8 @@ import { test, expect } from '@playwright/test'
 test.describe('Complete Race Flow', () => {
   test('navigate to home page', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByText('PWDTimer')).toBeVisible()
-    await expect(page.getByText(/modernized race management/i)).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Pinewood Derby Timer' })).toBeVisible()
+    await expect(page.getByText(/manage racers, schedule heats, and run your derby/i)).toBeVisible()
   })
 
   test('navigate to racers page', async ({ page }) => {

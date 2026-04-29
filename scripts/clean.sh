@@ -4,11 +4,11 @@
 #
 # Usage:
 #   cd PWDTimer
-#   ./clean.sh               # remove build artifacts only
-#   ./clean.sh --all         # also remove node_modules and build_env venv
+#   ./scripts/clean.sh       # remove build artifacts only
+#   ./scripts/clean.sh --all # also remove node_modules and build_env venv
 #
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 ALL=false
 for arg in "$@"; do
@@ -44,5 +44,5 @@ if $ALL; then
 
     echo "Done (full clean)."
 else
-    echo "Done. (Run './clean.sh --all' to also remove node_modules and build_env/)"
+    echo "Done. (Run './scripts/clean.sh --all' to also remove node_modules and build_env/)"
 fi

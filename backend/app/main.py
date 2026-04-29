@@ -14,6 +14,16 @@ from .services.event_bus import event_bus
 app = FastAPI(title="PWDTimer API")
 
 
+def _cors_origins() -> list[str]:
+    defaults = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+    configured = os.environ.get("PWD_TIMER_CORS_ORIGINS", "")
+    extras = [origin.strip() for origin in configured.split(",") if origin.strip()]
+    return [*defaults, *extras]
+
+
 @app.on_event("startup")
 async def _startup() -> None:
     await init_db()
@@ -30,10 +40,7 @@ async def _shutdown() -> None:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

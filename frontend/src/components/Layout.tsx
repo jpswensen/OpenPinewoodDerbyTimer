@@ -12,7 +12,6 @@ import {
   Moon,
   Menu,
   X,
-  Timer,
 } from 'lucide-react'
 
 import { useTheme } from '../context/theme'
@@ -43,9 +42,7 @@ export function Layout() {
         <div className="mx-auto flex items-center gap-6 px-6 py-0">
           {/* Logo / Title */}
           <NavLink to="/" className="flex shrink-0 items-center gap-2.5 py-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-sm">
-              <Timer size={18} />
-            </div>
+            <img src="/pwdtimer-logo.svg" alt="" className="h-8 w-8 rounded-lg shadow-sm" />
             <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
               PWDTimer
             </span>

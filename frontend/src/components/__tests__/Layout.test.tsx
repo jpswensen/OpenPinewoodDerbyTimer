@@ -41,10 +41,9 @@ describe('Layout', () => {
   it('has a theme toggle button', async () => {
     const user = userEvent.setup()
     renderWithProviders(<TestLayout />)
-    const toggleBtn = screen.getByText(/light|dark/i)
+    const toggleBtn = screen.getByRole('button', { name: /switch to dark mode/i })
     expect(toggleBtn).toBeInTheDocument()
     await user.click(toggleBtn)
-    // Verify it toggled (the text should change)
-    expect(screen.getByText(/light|dark/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /switch to light mode/i })).toBeInTheDocument()
   })
 })

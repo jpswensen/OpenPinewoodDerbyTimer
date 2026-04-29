@@ -5,8 +5,8 @@ test.describe('Responsive Design', () => {
     await page.setViewportSize({ width: 375, height: 812 })
     await page.goto('/')
 
-    // Mobile should show a "Menu" button for toggling sidebar
-    await expect(page.getByText('Menu')).toBeVisible()
+    // Mobile should show an icon button for toggling navigation.
+    await expect(page.getByRole('button', { name: 'Toggle menu' })).toBeVisible()
   })
 
   test('desktop viewport shows sidebar directly', async ({ page }) => {
@@ -22,8 +22,8 @@ test.describe('Responsive Design', () => {
     await page.setViewportSize({ width: 375, height: 812 })
     await page.goto('/')
 
-    // Click menu button to toggle sidebar
-    await page.getByText('Menu').click()
+    // Click menu button to toggle navigation.
+    await page.getByRole('button', { name: 'Toggle menu' }).click()
 
     // Should show navigation links now
     await expect(page.getByRole('link', { name: 'Racers' })).toBeVisible()
@@ -35,7 +35,7 @@ test.describe('Dark Mode', () => {
     await page.goto('/')
 
     // Find the theme toggle button
-    const toggleBtn = page.getByText(/light|dark/i).first()
+    const toggleBtn = page.getByRole('button', { name: /switch to (light|dark) mode/i })
     await expect(toggleBtn).toBeVisible()
 
     // Click to toggle
@@ -63,7 +63,7 @@ test.describe('Dark Mode', () => {
     await page.goto('/')
 
     // Set to dark mode via toggle
-    const toggleBtn = page.getByText(/light|dark/i).first()
+    const toggleBtn = page.getByRole('button', { name: /switch to (light|dark) mode/i })
     await toggleBtn.click()
 
     // Note the current state
