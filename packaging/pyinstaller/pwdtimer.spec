@@ -15,9 +15,14 @@ from pathlib import Path
 
 block_cipher = None
 
-# Paths are absolute so the spec works whether it is invoked from the project
-# root or directly from packaging/pyinstaller.
-project_root = Path(__file__).resolve().parents[2]
+# PyInstaller executes spec files without defining __file__; SPECPATH is the
+# spec directory it provides at build time. Keep a fallback for direct execution
+# by Python tooling.
+if "SPECPATH" in globals():
+    spec_dir = Path(SPECPATH).resolve()
+else:
+    spec_dir = Path(__file__).resolve().parent
+project_root = spec_dir.parents[1]
 backend_dir = project_root / "backend"
 frontend_dist = project_root / "frontend" / "dist"
 icon_dir = project_root / "packaging" / "icons"
