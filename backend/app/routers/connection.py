@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.services.connection_manager import ConnectionManager
 from app.services.mdns_discovery import discover_services, resolve_hostname
+from app.services.timer_protocol import TimerState
 
 router = APIRouter(prefix="/api/connection", tags=["connection"])
 
@@ -128,7 +129,11 @@ async def reset(request: Request) -> dict:
     try:
         since = mgr.get_status().last_message_at
         await mgr.send_reset()
-        await mgr.wait_for_fresh_status(since)
+        await mgr.wait_for_fresh_status(
+            since,
+            predicate=lambda status: status.state in (TimerState.RESET, TimerState.SET)
+            and (status.start_time_us is None or status.start_time_us <= 0),
+        )
     except RuntimeError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     return mgr.get_status().to_dict()

@@ -138,6 +138,48 @@ class TestConnectionManager(unittest.IsolatedAsyncioTestCase):
 
         await mgr.disconnect()
 
+    async def test_wait_for_fresh_status_ignores_non_matching_fresh_frame(self) -> None:
+        """Predicate waits protect UDP commands from stale in-flight status frames."""
+        reader = asyncio.StreamReader()
+
+        class _Writer:
+            def write(self, data: bytes) -> None:
+                return
+            async def drain(self) -> None: return
+            def close(self) -> None: return
+            async def wait_closed(self) -> None: return
+
+        async def fake_dial(host, port, **_):
+            reader.feed_data(b"$3,1000,2000,4,0,0,0,0,0,0,0,0*")
+            return reader, _Writer()
+
+        mgr = ConnectionManager(tcp_dialer=fake_dial, reconnect_backoff_seconds=0.01)
+        await mgr.connect_tcp(host="127.0.0.1", port=8080, auto_reconnect=False)
+        await asyncio.sleep(0.05)
+
+        since = mgr.get_status().last_message_at
+        self.assertIsNotNone(since)
+
+        async def _feed_later():
+            await asyncio.sleep(0.05)
+            reader.feed_data(b"$3,1000,2100,4,0,0,0,0,0,0,0,0*")
+            await asyncio.sleep(0.08)
+            reader.feed_data(b"$2,-1,2200,4,0,0,0,0,0,0,0,0*")
+
+        asyncio.create_task(_feed_later())
+
+        await mgr.wait_for_fresh_status(
+            since,
+            timeout=1.0,
+            predicate=lambda status: status.state in (TimerState.RESET, TimerState.SET)
+            and (status.start_time_us is None or status.start_time_us <= 0),
+        )
+
+        self.assertEqual(mgr.get_status().last_status.state, TimerState.SET)
+        self.assertEqual(mgr.get_status().last_status.start_time_us, -1)
+
+        await mgr.disconnect()
+
     async def test_wait_for_fresh_status_times_out_gracefully(self) -> None:
         """wait_for_fresh_status must return (not raise) after timeout with no new frame."""
         mgr = ConnectionManager(reconnect_backoff_seconds=0.01)

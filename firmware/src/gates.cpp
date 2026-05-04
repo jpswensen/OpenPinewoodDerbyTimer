@@ -72,6 +72,9 @@ static volatile int64_t  s_startUs                  = -1; // micros() at start; 
 static volatile uint64_t s_startCycles64            = 0;  // 64-bit extended CCOUNT at start
 static volatile uint64_t s_endCycles64[MAX_LANES]   = {}; // 64-bit extended CCOUNT at each lane finish
 static volatile bool     s_laneFinished[MAX_LANES]  = {};
+// After RESET, require a clean HIGH sample before accepting a falling edge.
+// This prevents a gate that is already open/LOW from immediately starting.
+static volatile bool     s_waitForStartGateHigh     = true;
 
 // ── Lane count (written Core 1, read Core 0) ───────────────────────────────
 // A single aligned 32-bit write is atomic on Xtensa LX6; no spinlock needed.
@@ -119,6 +122,17 @@ static void IRAM_ATTR gatesCoreTask(void *) {
 
         // volatile 32-bit read is atomic on Xtensa LX6.
         const TimerState_t cur = state;
+
+        if (s_waitForStartGateHigh) {
+            if (lo & s_startGateMask) {
+                s_waitForStartGateHigh = false;
+            } else if (cur == RESET || cur == SET || cur == FINISHED) {
+                vTaskDelay(1);
+            }
+            prevLo = lo;
+            prevHi = hi;
+            continue;
+        }
 
         if (cur == SET) {
             // FALLING edge on start-gate pin (active-low with pull-up).
@@ -206,6 +220,7 @@ void reset_gates() {
     portENTER_CRITICAL(&s_mux);
     s_startUs       = -1;
     s_startCycles64 = 0;
+    s_waitForStartGateHigh = true;
     for (int i = 0; i < MAX_LANES; ++i) {
         s_endCycles64[i]  = 0;
         s_laneFinished[i] = false;

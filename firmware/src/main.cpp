@@ -49,6 +49,7 @@ static void stateMachineTask(void *) {
     uint32_t lastStatusMs = 0;
 
     for (;;) {
+        bool     forceStatus = false;
         int64_t  startTime  = -1;
         int64_t  endTimes[MAX_LANES] = {};
         int64_t  currentTime = (int64_t)micros();
@@ -60,12 +61,16 @@ static void stateMachineTask(void *) {
         int param = 0;
         switch (poll_command(&param)) {
             case RESET_MSG:
-                state = RESET;
                 reset_gates();
+                state = RESET;
+                startTime = -1;
+                for (int i = 0; i < MAX_LANES; ++i) endTimes[i] = 0;
+                forceStatus = true;
                 break;
             case SET_LANES_MSG:
                 set_num_gates(param);
                 numLanes = get_num_gates();
+                forceStatus = true;
                 break;
             default:
                 break;
@@ -106,7 +111,7 @@ static void stateMachineTask(void *) {
         const uint32_t interval = (state == SET || state == IN_RACE)
                                       ? RACE_STATUS_INTERVAL_MS
                                       : IDLE_STATUS_INTERVAL_MS;
-        if (lastStatusMs == 0 || (nowMs - lastStatusMs) >= interval) {
+        if (forceStatus || lastStatusMs == 0 || (nowMs - lastStatusMs) >= interval) {
             send_status(state, startTime, currentTime, numLanes, endTimes,
                         is_starting_gate_set());
             lastStatusMs = nowMs;

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from app.services.event_bus import EventBus
@@ -210,7 +210,12 @@ class ConnectionManager:
             raise ValueError("num_lanes must be between 1 and 8")
         return num_lanes
 
-    async def wait_for_fresh_status(self, since: datetime | None, timeout: float = 1.5) -> None:
+    async def wait_for_fresh_status(
+        self,
+        since: datetime | None,
+        timeout: float = 1.5,
+        predicate: Callable[[TimerStatus], bool] | None = None,
+    ) -> None:
         """Block until a status frame newer than `since` is received, or timeout.
 
         Call this after sending a command so the HTTP response reflects the
@@ -218,14 +223,15 @@ class ConnectionManager:
         The firmware broadcasts at 10 Hz during SET/IN_RACE and 1 Hz at idle,
         so 1.5 s covers the worst case with comfortable margin.
         """
-        if since is None:
+        if since is None and predicate is None:
             await asyncio.sleep(0.15)
             return
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
         while loop.time() < deadline:
             last = self._status.last_message_at
-            if last is not None and last > since:
+            status = self._status.last_status
+            if last is not None and (since is None or last > since) and (predicate is None or (status is not None and predicate(status))):
                 return
             await asyncio.sleep(0.05)  # poll at 20 Hz
 

@@ -211,6 +211,7 @@ After flashing:
 9. Trigger every active lane sensor and confirm lane timestamps become non-zero.
 10. Confirm state changes to `FINISHED` after all active lanes trigger.
 11. Send `RESET` and confirm lane fields clear.
+12. Leave the gate open after `RESET` and confirm the timer stays in `RESET`; it should not start again until the gate is closed/set and then released.
 
 ## Design tradeoffs and limitations
 
