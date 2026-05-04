@@ -7,7 +7,7 @@ import { useConfirm } from '../components/ui/useConfirm'
 import { useToast } from '../components/ui/Toast'
 
 import { ApiError } from '../api/client'
-import { resetTimer } from '../api/endpoints/connection'
+import { resetTimer, setTimerLanes } from '../api/endpoints/connection'
 import type { Heat, HeatUpdateRequest, Race } from '../api/endpoints/races'
 import { listHeats, listRaces, updateHeat } from '../api/endpoints/races'
 import type { Racer } from '../api/endpoints/racers'
@@ -18,7 +18,7 @@ import { useWebSocket } from '../hooks/useWebSocket'
 
 type TimerConnectionStatus = {
   connection_state: 'disconnected' | 'connecting' | 'connected'
-  mode: 'serial' | 'tcp' | null
+  mode: 'serial' | 'tcp' | 'udp' | null
   target: string | null
   last_message_at: string | null
   last_error: string | null
@@ -221,6 +221,7 @@ export function RacePage() {
   const [navTarget, setNavTarget] = useState<Heat | null>(null)
   const [soundEnabled, setSoundEnabled] = useState(() => readBool(STORAGE_KEYS.soundEnabled, false))
   const soundEnabledRef = useRef(soundEnabled)
+  const lastLaneSyncKeyRef = useRef<string | null>(null)
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -280,10 +281,38 @@ export function RacePage() {
   }, [heatsQ.data])
 
   const numLanes = useMemo(() => {
-    const fromTimer = laneTimes?.num_lanes ?? raceState?.num_lanes
+    const fromHeat = currentHeat?.lanes.reduce((max, lane) => Math.max(max, lane.lane_number), 0) || null
     const fromRace = selectedRace?.num_lanes
-    return clampInt(fromTimer ?? fromRace ?? 4, 1, 8)
-  }, [laneTimes?.num_lanes, raceState?.num_lanes, selectedRace?.num_lanes])
+    const fromTimer = laneTimes?.num_lanes ?? raceState?.num_lanes
+    return clampInt(fromHeat ?? fromRace ?? fromTimer ?? 4, 1, 8)
+  }, [currentHeat?.lanes, laneTimes?.num_lanes, raceState?.num_lanes, selectedRace?.num_lanes])
+
+  useEffect(() => {
+    const desired = selectedRace?.num_lanes == null ? null : clampInt(selectedRace.num_lanes, 1, 8)
+    if (desired == null || timerConn?.connection_state !== 'connected') return
+
+    const actual = laneTimes?.num_lanes ?? raceState?.num_lanes ?? null
+    if (actual === desired) {
+      lastLaneSyncKeyRef.current = null
+      return
+    }
+
+    const syncKey = `${activeRaceId ?? 'no-race'}:${desired}:${actual ?? 'unknown'}`
+    if (lastLaneSyncKeyRef.current === syncKey) return
+    lastLaneSyncKeyRef.current = syncKey
+
+    void setTimerLanes(desired).catch((e) => {
+      const msg = e instanceof ApiError ? e.message : 'Failed to set timer lanes'
+      toast({ variant: 'error', title: 'Lane sync failed', description: msg })
+    })
+  }, [
+    activeRaceId,
+    laneTimes?.num_lanes,
+    raceState?.num_lanes,
+    selectedRace?.num_lanes,
+    timerConn?.connection_state,
+    toast,
+  ])
 
   useEffect(() => {
     soundEnabledRef.current = soundEnabled

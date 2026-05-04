@@ -61,12 +61,14 @@ export type ConnectRequest =
       mode: 'serial'
       serial_port: string
       baudrate?: number
+      num_lanes?: number
       auto_reconnect?: boolean
     }
   | {
       mode: 'tcp'
       host: string
       port?: number
+      num_lanes?: number
       auto_reconnect?: boolean
     }
   | {
@@ -74,6 +76,7 @@ export type ConnectRequest =
       udp_host?: string
       udp_cmd_port?: number
       udp_status_port?: number
+      num_lanes?: number
       auto_reconnect?: boolean
     }
 

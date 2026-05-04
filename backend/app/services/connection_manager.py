@@ -79,6 +79,7 @@ class ConnectionManager:
 
         self._config: dict | None = None
         self._auto_reconnect = True
+        self._desired_num_lanes: int | None = None
 
         self._reconnect_backoff_seconds = reconnect_backoff_seconds
         self._reconnect_backoff_max_seconds = reconnect_backoff_max_seconds
@@ -101,11 +102,15 @@ class ConnectionManager:
         *,
         host: str,
         port: int,
+        num_lanes: int | None = None,
         auto_reconnect: bool = True,
     ) -> None:
+        desired_num_lanes = self._validate_num_lanes(num_lanes)
         async with self._lock:
             await self._stop_runner_locked()
             self._auto_reconnect = auto_reconnect
+            if desired_num_lanes is not None:
+                self._desired_num_lanes = desired_num_lanes
             self._config = {"mode": "tcp", "host": host, "port": int(port)}
             self._status.connection_state = "connecting"
             self._status.mode = "tcp"
@@ -122,6 +127,7 @@ class ConnectionManager:
         host: str = "192.168.4.1",
         cmd_port: int = 9100,
         status_port: int = 9101,
+        num_lanes: int | None = None,
         auto_reconnect: bool = True,
     ) -> None:
         """Talk to the timer over UDP — listen for status broadcasts on
@@ -130,9 +136,12 @@ class ConnectionManager:
         ``host`` defaults to the firmware's SoftAP IP so the operator only
         needs to join the ``PWDTimer`` access point — no other configuration.
         """
+        desired_num_lanes = self._validate_num_lanes(num_lanes)
         async with self._lock:
             await self._stop_runner_locked()
             self._auto_reconnect = auto_reconnect
+            if desired_num_lanes is not None:
+                self._desired_num_lanes = desired_num_lanes
             self._config = {
                 "mode": "udp",
                 "host": host,
@@ -153,11 +162,15 @@ class ConnectionManager:
         *,
         port: str,
         baudrate: int = 115200,
+        num_lanes: int | None = None,
         auto_reconnect: bool = True,
     ) -> None:
+        desired_num_lanes = self._validate_num_lanes(num_lanes)
         async with self._lock:
             await self._stop_runner_locked()
             self._auto_reconnect = auto_reconnect
+            if desired_num_lanes is not None:
+                self._desired_num_lanes = desired_num_lanes
             self._config = {"mode": "serial", "port": port, "baudrate": int(baudrate)}
             self._status.connection_state = "connecting"
             self._status.mode = "serial"
@@ -184,7 +197,18 @@ class ConnectionManager:
         await self._send(format_command_arm())
 
     async def send_set_lanes(self, num_lanes: int) -> None:
-        await self._send(format_command_set_lanes(num_lanes))
+        payload = format_command_set_lanes(num_lanes)
+        await self._send(payload)
+        self._desired_num_lanes = int(num_lanes)
+
+    @staticmethod
+    def _validate_num_lanes(num_lanes: int | None) -> int | None:
+        if num_lanes is None:
+            return None
+        num_lanes = int(num_lanes)
+        if num_lanes < 1 or num_lanes > 8:
+            raise ValueError("num_lanes must be between 1 and 8")
+        return num_lanes
 
     async def wait_for_fresh_status(self, since: datetime | None, timeout: float = 1.5) -> None:
         """Block until a status frame newer than `since` is received, or timeout.
@@ -210,7 +234,10 @@ class ConnectionManager:
             writer = self._writer
             if writer is None:
                 raise RuntimeError("not connected")
-            writer.write(payload)
+        await self._write_to_writer(writer, payload)
+
+    async def _write_to_writer(self, writer, payload: bytes) -> None:
+        writer.write(payload)
         if hasattr(writer, "drain"):
             await writer.drain()
         if self._serial_monitor_enabled:
@@ -317,6 +344,9 @@ class ConnectionManager:
                 reader, writer = await self._connect_once(cfg)
                 async with self._lock:
                     self._writer = writer
+                    desired_num_lanes = self._desired_num_lanes
+                if desired_num_lanes is not None:
+                    await self._write_to_writer(writer, format_command_set_lanes(desired_num_lanes))
                 self._status.connection_state = "connected"
                 self._status.last_error = None
                 backoff = self._reconnect_backoff_seconds

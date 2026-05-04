@@ -152,6 +152,36 @@ class TestConnectionManager(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(elapsed, 0.14)  # waited out the timeout
         self.assertLess(elapsed, 0.5)           # didn't hang
 
+    async def test_connect_applies_desired_lane_count_when_writer_is_ready(self) -> None:
+        """Connect-time lane setup must not race ahead of the async runner."""
+        reader = asyncio.StreamReader()
+        sent: list[bytes] = []
+
+        class _Writer:
+            def write(self, data: bytes) -> None:
+                sent.append(data)
+
+            async def drain(self) -> None:
+                return
+
+            def close(self) -> None:
+                return
+
+            async def wait_closed(self) -> None:
+                return
+
+        async def fake_dial(host, port, **_):
+            reader.feed_data(b"$1,-1,1000,8,0,0,0,0,0,0,0,0*")
+            return reader, _Writer()
+
+        mgr = ConnectionManager(tcp_dialer=fake_dial, reconnect_backoff_seconds=0.01)
+        await mgr.connect_tcp(host="127.0.0.1", port=8080, num_lanes=4, auto_reconnect=False)
+        await asyncio.sleep(0.05)
+
+        self.assertIn(b"SET_LANES:4\n", sent)
+
+        await mgr.disconnect()
+
 
 class TestConnectionAPI(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:

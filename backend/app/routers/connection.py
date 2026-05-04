@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.services.connection_manager import ConnectionManager
 from app.services.mdns_discovery import discover_services, resolve_hostname
@@ -51,6 +51,7 @@ class ConnectRequest(BaseModel):
     baudrate: int = 115200
     host: str | None = None
     port: int = 8080
+    num_lanes: int | None = Field(default=None, ge=1, le=8)
     # UDP-specific (defaults match the firmware's SoftAP + UDP ports)
     udp_host: str = "192.168.4.1"
     udp_cmd_port: int = 9100
@@ -66,14 +67,22 @@ async def connect(payload: ConnectRequest, request: Request) -> dict:
         if not payload.serial_port:
             raise HTTPException(status_code=400, detail="serial_port is required for serial mode")
         await mgr.connect_serial(
-            port=payload.serial_port, baudrate=payload.baudrate, auto_reconnect=payload.auto_reconnect
+            port=payload.serial_port,
+            baudrate=payload.baudrate,
+            num_lanes=payload.num_lanes,
+            auto_reconnect=payload.auto_reconnect,
         )
         return mgr.get_status().to_dict()
 
     if payload.mode == "tcp":
         if not payload.host:
             raise HTTPException(status_code=400, detail="host is required for tcp mode")
-        await mgr.connect_tcp(host=payload.host, port=payload.port, auto_reconnect=payload.auto_reconnect)
+        await mgr.connect_tcp(
+            host=payload.host,
+            port=payload.port,
+            num_lanes=payload.num_lanes,
+            auto_reconnect=payload.auto_reconnect,
+        )
         return mgr.get_status().to_dict()
 
     if payload.mode == "udp":
@@ -81,6 +90,7 @@ async def connect(payload: ConnectRequest, request: Request) -> dict:
             host=payload.udp_host,
             cmd_port=payload.udp_cmd_port,
             status_port=payload.udp_status_port,
+            num_lanes=payload.num_lanes,
             auto_reconnect=payload.auto_reconnect,
         )
         return mgr.get_status().to_dict()

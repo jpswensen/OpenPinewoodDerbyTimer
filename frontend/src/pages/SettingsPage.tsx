@@ -74,7 +74,7 @@ export function SettingsPage() {
       if (connMode === 'serial') {
         const port = serialPort.trim()
         if (!port) throw new ApiError('Select a serial port first', 400, null)
-        return connectTimer({ mode: 'serial', serial_port: port, baudrate, auto_reconnect: autoReconnect })
+        return connectTimer({ mode: 'serial', serial_port: port, baudrate, num_lanes: laneCount, auto_reconnect: autoReconnect })
       }
       const host = udpHost.trim() || '192.168.4.1'
       return connectTimer({
@@ -82,16 +82,12 @@ export function SettingsPage() {
         udp_host: host,
         udp_cmd_port: udpCmdPort,
         udp_status_port: udpStatusPort,
+        num_lanes: laneCount,
         auto_reconnect: autoReconnect,
       })
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['connection', 'status'] })
-      try {
-        await setTimerLanes(laneCount)
-      } catch {
-        // ignore; timer may not be ready yet
-      }
       toast({ variant: 'success', title: 'Connect requested' })
     },
     onError: (e) => {
