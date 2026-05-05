@@ -102,8 +102,9 @@ The timing hot path is in `gatesCoreTask`.
 2. It immediately reads GPIO bank 0 (`GPIO_IN_REG`) and GPIO bank 1 (`GPIO_IN1_REG`).
 3. All bank-0 lane pins and the start gate are sampled in one register read.
 4. GPIO32/GPIO33 lanes are sampled in the second bank read only a few nanoseconds later.
-5. Falling edges are detected by comparing the previous and current GPIO snapshots.
-6. Finish timestamps are stored as 64-bit cycle counts and converted to microsecond timestamps when core 0 reads the snapshot.
+5. Lane falling edges are detected by comparing the previous and current GPIO snapshots.
+6. The start gate must read active-low for 16 consecutive hot-loop samples before a race starts; the recorded start timestamp is still the first low sample in that stable run.
+7. Finish timestamps are stored as 64-bit cycle counts and converted to microsecond timestamps when core 0 reads the snapshot.
 
 Important performance characteristics:
 
@@ -114,6 +115,7 @@ Important performance characteristics:
 | Protocol resolution | Integer microseconds |
 | Race status update rate | 10 Hz in `SET` and `IN_RACE` |
 | Idle status update rate | 1 Hz in `RESET` and `FINISHED` |
+| Start-gate noise filter | 16 consecutive active-low hot-loop samples before `IN_RACE` |
 | State-machine loop cadence | About 100 Hz (`vTaskDelay(10 ms)`) |
 | Serial RX poll cadence | About 200 Hz (`vTaskDelay(5 ms)`) |
 | UDP RX poll cadence | About 200 Hz (`vTaskDelay(5 ms)`) |

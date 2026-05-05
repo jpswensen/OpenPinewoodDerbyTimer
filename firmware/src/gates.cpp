@@ -54,6 +54,11 @@ static const int STARTGATE_PIN = 22;
 // 240 cycles == 1 µs exactly at 240 MHz.  Must match board_build.f_cpu / 1e6.
 static const uint32_t CPU_FREQ_MHZ = 240;
 
+// The start-gate cable can be long and noisy. Require several consecutive
+// active-low samples before starting a race; the stored start timestamp remains
+// the first low sample in that stable run.
+static const uint32_t START_GATE_CONFIRM_SAMPLES = 16;
+
 // ── Pre-computed GPIO masks (initialised once in setup_gates) ──────────────
 // Bank 0: GPIO_IN_REG  covers GPIO  0-31 (lanes 1-5, 8 + start gate)
 // Bank 1: GPIO_IN1_REG covers GPIO 32-39 (lanes 6-7)
@@ -106,6 +111,9 @@ static void IRAM_ATTR gatesCoreTask(void *) {
     // more than one wrap between iterations.
     uint32_t prevCcount   = get_ccount();
     uint64_t ccountHigh   = 0;
+    uint32_t startGateLowCount = 0;
+    uint64_t startGateFirstLowCycles64 = 0;
+    int64_t  startGateFirstLowUs = -1;
 
     for (;;) {
         // Snapshot the cycle counter before reading the GPIO banks so that
@@ -121,22 +129,42 @@ static void IRAM_ATTR gatesCoreTask(void *) {
         const TimerState_t cur = state;
 
         if (cur == SET) {
-            // FALLING edge on start-gate pin (active-low with pull-up).
-            if ((prevLo & s_startGateMask) && !(lo & s_startGateMask)) {
+            const bool startGateLow = (lo & s_startGateMask) == 0;
+            if (startGateLow) {
+                if (startGateLowCount == 0) {
+                    startGateFirstLowCycles64 = cycles;
+                    startGateFirstLowUs = (int64_t)micros();
+                }
+                if (startGateLowCount < START_GATE_CONFIRM_SAMPLES) {
+                    ++startGateLowCount;
+                }
+            } else {
+                startGateLowCount = 0;
+                startGateFirstLowCycles64 = 0;
+                startGateFirstLowUs = -1;
+            }
+
+            if (startGateLowCount >= START_GATE_CONFIRM_SAMPLES) {
                 portENTER_CRITICAL(&s_mux);
-                s_startUs       = (int64_t)micros();
-                s_startCycles64 = cycles;
+                s_startUs       = startGateFirstLowUs;
+                s_startCycles64 = startGateFirstLowCycles64;
                 for (int i = 0; i < MAX_LANES; ++i) {
                     s_endCycles64[i]  = 0;
                     s_laneFinished[i] = false;
                 }
+                state = IN_RACE; // atomic 32-bit store
                 portEXIT_CRITICAL(&s_mux);
 
                 for (int i = 0; i < MAX_LANES; ++i) localFinished[i] = false;
-                state = IN_RACE; // atomic 32-bit store
+                startGateLowCount = 0;
+                startGateFirstLowCycles64 = 0;
+                startGateFirstLowUs = -1;
             }
 
         } else if (cur == IN_RACE) {
+            startGateLowCount = 0;
+            startGateFirstLowCycles64 = 0;
+            startGateFirstLowUs = -1;
             const uint32_t fell_lo = prevLo & ~lo; // bits that went HIGH -> LOW
             const uint32_t fell_hi = prevHi & ~hi;
             const int      active  = s_numGates;
@@ -160,6 +188,9 @@ static void IRAM_ATTR gatesCoreTask(void *) {
             if (pending == 0) state = FINISHED; // atomic 32-bit store
 
         } else {
+            startGateLowCount = 0;
+            startGateFirstLowCycles64 = 0;
+            startGateFirstLowUs = -1;
             // RESET or FINISHED: nothing to time.  Sleep for one tick so
             // IDLE1, loop(), and any other lower-priority work on Core 1
             // get CPU time.  taskYIELD() alone is NOT sufficient here:

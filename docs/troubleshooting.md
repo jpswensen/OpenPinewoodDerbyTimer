@@ -54,12 +54,12 @@ Common fixes:
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | Race page stays Ready | Start gate input is not reading set/armed | Check the GPIO22 gate wiring and sensor polarity |
-| Race starts before the gate moves | Gate sensor is noisy or inverted | Adjust the switch/sensor so set state is stable |
+| Race starts before the gate moves | Gate sensor is noisy, inverted, or still coupling noise despite the firmware's short start-gate low filter | Adjust the switch/sensor so set state is stable; use a shorter/shielded gate cable if needed |
 | Race never finishes | One or more active lanes did not trigger | Check alignment, mark DNF, or reduce active lane count |
 | A lane always shows DNF/missing | Bad sensor, cable, connector, or wrong lane count | Swap sensors/cables to isolate the issue |
 | Times are impossible | Finish sensor triggered early/late or gate sensor fired at wrong moment | Re-align sensors and rerun the heat before accepting |
 
-The firmware considers the start gate **set** when GPIO22 reads HIGH and starts the race on the falling edge to LOW.
+The firmware considers the start gate **set** when GPIO22 reads HIGH and starts the race only after GPIO22 remains LOW for 16 consecutive hot-loop samples.
 
 ## Heat scheduling
 

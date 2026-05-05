@@ -51,7 +51,7 @@ The source of truth is `firmware/src/gates.cpp`.
 | Lane 8 | GPIO23 | `OUT8` |
 | Start gate | GPIO22 | `GATE` |
 
-Inputs use ESP32 internal pull-ups. Lane sensors are captured on falling edges. The start gate is considered **set** when GPIO22 reads HIGH; the race starts on the falling edge from HIGH to LOW.
+Inputs use ESP32 internal pull-ups. Lane sensors are captured on falling edges. The start gate is considered **set** when GPIO22 reads HIGH; the race starts after GPIO22 reads LOW for 16 consecutive hot-loop samples, with the start timestamp taken from the first low sample in that stable run.
 
 ## Wi-Fi / UDP settings
 
