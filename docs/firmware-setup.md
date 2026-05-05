@@ -108,7 +108,6 @@ The backend converts raw lane timestamps to race-relative durations before savin
 6. Trigger each active lane sensor and confirm the corresponding lane timestamp becomes non-zero.
 7. Confirm status moves to `FINISHED` when every active lane has triggered.
 8. Send `RESET` from the monitor and confirm lane timestamps clear.
-9. With the gate still open, confirm the timer stays in `RESET`; it should not start again until the gate is closed/set and then released.
 
 ## Changing lane count
 
