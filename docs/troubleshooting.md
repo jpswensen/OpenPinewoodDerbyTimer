@@ -59,7 +59,7 @@ Common fixes:
 | A lane always shows DNF/missing | Bad sensor, cable, connector, or wrong lane count | Swap sensors/cables to isolate the issue |
 | Times are impossible | Finish sensor triggered early/late or gate sensor fired at wrong moment | Re-align sensors and rerun the heat before accepting |
 
-The firmware considers the start gate **set** when GPIO22 reads HIGH and starts the race only after GPIO22 remains LOW for 16 consecutive hot-loop samples.
+The firmware considers the start gate **set** when GPIO22 reads HIGH and starts the race only after GPIO22 remains LOW continuously for 10 ms.
 
 ## Heat scheduling
 
