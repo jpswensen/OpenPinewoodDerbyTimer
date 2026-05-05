@@ -14,9 +14,9 @@
 //   a single cycle-accurate timestamp (~4 ns resolution at 240 MHz).
 //   All six bank-0 lanes plus the start gate are captured in one 32-bit read;
 //   the two bank-1 lanes are captured in a second read ~8 ns later.
-//   Arduino's loop() also defaults to Core 1 but is suspended in main.cpp,
-//   so the timing task is the only thing scheduled here aside from the FreeRTOS
-//   IDLE1 task.
+//   Arduino's loop() also defaults to Core 1 but is suspended in main.cpp.
+//   setup_gates() removes IDLE1 from the task watchdog because SET/IN_RACE
+//   intentionally keep this task runnable continuously for edge timing.
 //
 //   Core 0 owns commsCoreTask, the state-machine task, and the WiFi stack
 //   (when enabled — ESP-IDF pins WiFi/TCP-IP protocol tasks to Core 0 by
@@ -188,6 +188,16 @@ void setup_gates() {
         }
     }
     s_startGateMask = 1u << STARTGATE_PIN;
+
+    // Core 1 is dedicated to the timing hot path. During SET and IN_RACE this
+    // task must not yield to the idle task for watchdog bookkeeping, otherwise
+    // start/finish edge capture could pick up millisecond-scale latency. Core 0
+    // remains watchdog-protected for serial, UDP, Wi-Fi, and state-machine work.
+#ifndef CONFIG_FREERTOS_UNICORE
+    if (!disableCore1WDT()) {
+        Serial.println("WARNING: failed to disable Core 1 idle watchdog");
+    }
+#endif
 
     reset_gates();
     xTaskCreatePinnedToCore(gatesCoreTask, "gatesTask",

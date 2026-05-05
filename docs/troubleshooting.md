@@ -27,6 +27,7 @@
 | Permission denied on Linux | Add the user to the serial group, often `dialout`, then log out/in |
 | Connect succeeds but no status appears | Open `pio device monitor`, confirm firmware is running and baud rate is `115200` |
 | Random disconnects | Try a shorter USB cable and stable power source |
+| Status output stops after 10-20 seconds while armed or racing | Firmware is likely old enough to still hit the Core 1 task watchdog during the tight timing loop | Pull the latest firmware, re-flash the ESP32, and confirm boot output shows the updated build |
 
 ## Wi-Fi UDP connection
 

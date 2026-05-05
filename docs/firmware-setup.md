@@ -30,6 +30,7 @@ The default environment is `esp32doit-devkit-v1`. The platform is pinned to the 
 - ESP32 dual-core timing architecture.
 - Core 1 runs the tight gate/lane polling task.
 - Core 0 runs command parsing, state machine, serial TX/RX, and Wi-Fi/UDP tasks.
+- Core 1 idle watchdog is disabled because the timing loop intentionally monopolizes Core 1 while armed/racing; Core 0 remains watchdog-protected.
 - Lane timing uses the Xtensa cycle counter extended to 64 bits.
 - USB serial is always active.
 - Wi-Fi SoftAP + UDP is enabled by `-DPWDTIMER_ENABLE_WIFI=1` in `platformio.ini`.

@@ -92,6 +92,8 @@ The firmware splits time-critical sensor work from I/O and state management.
 
 This layout keeps the high-priority timing loop on core 1 away from serial, Wi-Fi, and backend communication work on core 0.
 
+Because `gatesCoreTask` intentionally stays runnable without yielding while the timer is armed (`SET`) or racing (`IN_RACE`), `setup_gates()` removes the Core 1 idle task from the task watchdog. Core 0 remains watchdog-protected for serial, UDP, Wi-Fi, and the state machine. This prevents long staging periods or a missing lane finish from causing task-watchdog resets that stop serial/UDP status output.
+
 ## Timing design and performance
 
 The timing hot path is in `gatesCoreTask`.
@@ -116,6 +118,7 @@ Important performance characteristics:
 | Serial RX poll cadence | About 200 Hz (`vTaskDelay(5 ms)`) |
 | UDP RX poll cadence | About 200 Hz (`vTaskDelay(5 ms)`) |
 | CCOUNT wrap handling | 32-bit CCOUNT is extended to 64 bits, avoiding the native ~17.9 s wrap problem |
+| Watchdog handling | Core 1 idle watchdog is disabled because the timing loop monopolizes Core 1 in `SET`/`IN_RACE`; Core 0 remains protected |
 
 The public protocol reports microseconds because the backend/UI and stored results use microseconds. Internally, lane ordering uses the cycle counter before conversion, so cars finishing in the same microsecond still preserve the sensor-capture ordering before the status frame is emitted.
 
